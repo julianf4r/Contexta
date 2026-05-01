@@ -25,6 +25,10 @@ function replaceTokens(template: string, values: Record<string, string>) {
   );
 }
 
+function removeOutputFormatSection(template: string) {
+  return template.replace(/\n# Output Format[\s\S]*$/i, '').trim();
+}
+
 export function buildSingleTranslationSystemPrompt(
   template: string,
   context: Omit<SingleTranslationPromptContext, 'context'>,
@@ -43,7 +47,7 @@ export function buildSingleEvaluationSystemPrompt(
   template: string,
   context: SingleTranslationPromptContext,
 ) {
-  return replaceTokens(template, {
+  return replaceTokens(removeOutputFormatSection(template), {
     SOURCE_LANG: context.sourceLang.englishName,
     TARGET_LANG: context.targetLang.englishName,
     SPEAKER_IDENTITY: context.speakerIdentity,
@@ -88,6 +92,10 @@ export function buildConversationSystemPrompt(template: string, context: Convers
     TO_LANG: context.toLang.englishName,
     TARGET_TONE: context.targetTone,
   });
+}
+
+export function buildConversationEvaluationSystemPrompt(template: string, context: ConversationPromptContext, emptyHistoryFallback: string) {
+  return buildConversationSystemPrompt(removeOutputFormatSection(template), context, emptyHistoryFallback);
 }
 
 export function buildConversationTranslationUserPrompt(text: string) {

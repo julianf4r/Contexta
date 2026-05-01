@@ -1,5 +1,6 @@
 use tauri::{AppHandle, Emitter};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use futures_util::StreamExt;
 use reqwest::Client;
 
@@ -14,6 +15,8 @@ struct TranslationPayload {
     model: String,
     messages: Vec<Message>,
     stream: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<Value>,
 }
 
 #[derive(Deserialize)]

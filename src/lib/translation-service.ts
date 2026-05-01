@@ -6,10 +6,20 @@ interface Message {
   content: string;
 }
 
+interface JsonSchemaResponseFormat {
+  type: 'json_schema';
+  json_schema: {
+    name: string;
+    strict: boolean;
+    schema: Record<string, any>;
+  };
+}
+
 export interface TranslationPayload {
   model: string;
   messages: Message[];
   stream: boolean;
+  response_format?: JsonSchemaResponseFormat;
 }
 
 export interface TranslationChunkEvent {
@@ -54,6 +64,57 @@ const FALLBACK_EVALUATION_RESULT: EvaluationResult = {
   score: 0,
   analysis: '无法解析审计结果，请查看日志',
   suggestions: [],
+};
+
+export const EVALUATION_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
+  type: 'json_schema',
+  json_schema: {
+    name: 'translation_evaluation',
+    strict: true,
+    schema: {
+      type: 'object',
+      properties: {
+        score: {
+          type: 'number',
+          description: 'Overall translation quality score from 0 to 100.',
+          minimum: 0,
+          maximum: 100,
+        },
+        analysis: {
+          type: 'string',
+          description: 'Concise audit analysis written in Simplified Chinese.',
+        },
+        suggestions: {
+          type: 'array',
+          description: 'Specific actionable improvement suggestions.',
+          items: {
+            type: 'object',
+            properties: {
+              id: {
+                type: 'integer',
+                description: 'One-based suggestion identifier.',
+                minimum: 1,
+              },
+              text: {
+                type: 'string',
+                description: 'Suggestion text written in Simplified Chinese.',
+              },
+              importance: {
+                type: 'number',
+                description: 'Suggestion importance from 0 to 100.',
+                minimum: 0,
+                maximum: 100,
+              },
+            },
+            required: ['id', 'text', 'importance'],
+            additionalProperties: false,
+          },
+        },
+      },
+      required: ['score', 'analysis', 'suggestions'],
+      additionalProperties: false,
+    },
+  },
 };
 
 export function resolveModelConfig(

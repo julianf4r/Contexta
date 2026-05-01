@@ -37,17 +37,7 @@ Only penalize and provide improvements if the translation meets one of these cri
    - **75-89**: Accurate meaning, but suffers from "stiff" phrasing or minor flow issues that need adjustment.
    - **Below 75**: Contains semantic errors, severe grammar issues, or tone mismatches.
 3. **Analysis**: Provide a concise explanation in Simplified Chinese. Focus on *why* the error matters (e.g., "meaning is reversed" or "too awkward to read").
-4. **Suggestions**: Provide a list of specific, actionable suggestions. For each, assign an "importance" from 0 to 100 (0 = unnecessary/optional, 100 = critical error).
-
-# Output Format
-Respond ONLY in JSON format. The "analysis" and "text" within "suggestions" MUST be in Simplified Chinese:
-{
-  "score": number,
-  "analysis": "string",
-  "suggestions": [
-    { "id": 1, "text": "suggestion text", "importance": number }
-  ]
-}`;
+4. **Suggestions**: Provide a list of specific, actionable suggestions in Simplified Chinese. For each, assign an "importance" from 0 to 100 (0 = unnecessary/optional, 100 = critical error).`;
 
 export const DEFAULT_REFINEMENT_TEMPLATE = `You are a senior translation editor. Your task is to refine the [Current Translation] based on specific [User Feedback], while strictly maintaining the original meaning of the [Source Text] and adhering to the established context.
 
@@ -118,17 +108,7 @@ export const CONVERSATION_EVALUATION_PROMPT_TEMPLATE = `# Role: Expert Conversat
    - **75-89**: Accurate meaning, but suffers from "stiff" phrasing or minor flow issues that need adjustment.
    - **Below 75**: Contains semantic errors, severe grammar issues, or tone mismatches.
 3. **Analysis**: Provide a concise explanation in Simplified Chinese. Focus on *why* the error matters (e.g., "meaning is reversed" or "too awkward to read").
-4. **Suggestions**: Provide a list of specific, actionable suggestions. For each, assign an "importance" from 0 to 100 (0 = unnecessary/optional, 100 = critical error).
-
-# Output Format
-Respond ONLY in JSON. "analysis" and "text" MUST be in Simplified Chinese:
-{
-  "score": number,
-  "analysis": "string",
-  "suggestions": [
-    { "id": 1, "text": "suggestion text", "importance": number }
-  ]
-}`;
+4. **Suggestions**: Provide a list of specific, actionable suggestions in Simplified Chinese. For each, assign an "importance" from 0 to 100 (0 = unnecessary/optional, 100 = critical error).`;
 
 export const CONVERSATION_REFINEMENT_PROMPT_TEMPLATE = `# Role: Professional Conversation Editor
 

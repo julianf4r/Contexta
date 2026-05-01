@@ -19,6 +19,7 @@ import {
   buildSingleTranslationUserPrompt,
 } from '../lib/prompt-builders';
 import {
+  EVALUATION_RESPONSE_FORMAT,
   executeTranslationRequest,
   extractAssistantContent,
   resolveModelConfig,
@@ -145,7 +146,8 @@ const evaluateTranslation = async () => {
   const requestBody: TranslationPayload = {
     model: modelConfig.modelName,
     messages: [ { role: "system", content: evaluationSystemPrompt }, { role: "user", content: evaluationUserPrompt } ],
-    stream: false
+    stream: false,
+    response_format: EVALUATION_RESPONSE_FORMAT
   };
 
   try {

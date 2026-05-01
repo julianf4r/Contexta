@@ -21,12 +21,14 @@ import { cn } from '../lib/utils';
 import { listen } from '@tauri-apps/api/event';
 import { useClipboard } from '../composables/useClipboard';
 import {
+  buildConversationEvaluationSystemPrompt,
   buildConversationEvaluationUserPrompt,
   buildConversationRefinementUserPrompt,
   buildConversationSystemPrompt,
   buildConversationTranslationUserPrompt,
 } from '../lib/prompt-builders';
 import {
+  EVALUATION_RESPONSE_FORMAT,
   executeTranslationRequest,
   extractAssistantContent,
   resolveModelConfig,
@@ -300,7 +302,7 @@ const evaluateMessage = async (messageId: string, force = false) => {
     ? (TONE_REGISTER_OPTIONS.find(o => o.value === activeSession.value!.me.tone)?.value || 'Polite & Conversational')
     : 'Auto-detect';
 
-  const systemPrompt = buildConversationSystemPrompt(settings.chatEvaluationPromptTemplate, {
+  const systemPrompt = buildConversationEvaluationSystemPrompt(settings.chatEvaluationPromptTemplate, {
     me: activeSession.value.me,
     partner: activeSession.value.partner,
     historyBlock,
@@ -324,7 +326,8 @@ const evaluateMessage = async (messageId: string, force = false) => {
       { role: "system", content: systemPrompt },
       { role: "user", content: userPrompt }
     ],
-    stream: false
+    stream: false,
+    response_format: EVALUATION_RESPONSE_FORMAT
   };
 
   try {
