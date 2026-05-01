@@ -191,6 +191,17 @@ export function extractAssistantContent(response: string) {
   return response;
 }
 
+export function extractStreamedAssistantContent(response: string) {
+  return response
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('data: ') && line !== 'data: [DONE]')
+    .map((line) => safeParseJson(line.slice(6)) as any)
+    .filter(Boolean)
+    .map((parsed) => parsed.choices?.[0]?.delta?.content || '')
+    .join('');
+}
+
 export function tryParseEvaluationResult(raw?: string) {
   if (!raw) {
     return {

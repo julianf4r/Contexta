@@ -22,6 +22,7 @@ import {
   EVALUATION_RESPONSE_FORMAT,
   executeTranslationRequest,
   extractAssistantContent,
+  extractStreamedAssistantContent,
   resolveModelConfig,
   tryParseEvaluationResult,
   type TranslationChunkEvent,
@@ -213,7 +214,11 @@ const refineTranslation = async () => {
       },
     });
     
-    if (!settings.enableStreaming) targetText.value = extractAssistantContent(response);
+    if (settings.enableStreaming) {
+      targetText.value = extractStreamedAssistantContent(response) || targetText.value;
+    } else {
+      targetText.value = extractAssistantContent(response);
+    }
     
     if (evaluationResult.value?.suggestions) {
       appliedSuggestionIds.value.push(...selectedSuggestionIds.value);
@@ -269,7 +274,8 @@ const translate = async () => {
     
     let finalTargetText = '';
     if (settings.enableStreaming) {
-      finalTargetText = targetText.value;
+      finalTargetText = extractStreamedAssistantContent(response) || targetText.value;
+      targetText.value = finalTargetText;
     } else {
       finalTargetText = extractAssistantContent(response);
       targetText.value = finalTargetText;

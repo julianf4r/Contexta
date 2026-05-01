@@ -31,6 +31,7 @@ import {
   EVALUATION_RESPONSE_FORMAT,
   executeTranslationRequest,
   extractAssistantContent,
+  extractStreamedAssistantContent,
   resolveModelConfig,
   tryParseEvaluationResult,
   type TranslationChunkEvent,
@@ -247,7 +248,12 @@ const translateMessage = async (sender: 'me' | 'partner', retranslateId?: string
       },
     });
 
-    if (!settings.enableStreaming) {
+    if (settings.enableStreaming) {
+      const streamedContent = extractStreamedAssistantContent(response);
+      if (streamedContent) {
+        conversationStore.updateChatMessage(activeSession.value.id, messageId, { translated: streamedContent });
+      }
+    } else {
       conversationStore.updateChatMessage(activeSession.value.id, messageId, { translated: extractAssistantContent(response) });
     }
   } catch (err: any) {
@@ -424,7 +430,12 @@ const refineMessage = async (messageId: string) => {
       },
     });
 
-    if (!settings.enableStreaming) {
+    if (settings.enableStreaming) {
+      const streamedContent = extractStreamedAssistantContent(response);
+      if (streamedContent) {
+        conversationStore.updateChatMessage(activeSession.value.id, messageId, { translated: streamedContent });
+      }
+    } else {
       conversationStore.updateChatMessage(activeSession.value.id, messageId, { translated: extractAssistantContent(response) });
     }
   } catch {

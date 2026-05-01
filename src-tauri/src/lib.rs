@@ -77,17 +77,24 @@ async fn translate(
     }
 
     let mut stream = res.bytes_stream();
-    let mut raw_stream_log = String::new();
+    let mut raw_stream_log = Vec::new();
+    let mut pending_line = Vec::new();
+    let mut is_done = false;
 
     while let Some(item) = stream.next().await {
         let chunk = item.map_err(|e| e.to_string())?;
-        let text = String::from_utf8_lossy(&chunk);
-        raw_stream_log.push_str(&text);
-        
-        for line in text.lines() {
-            let line = line.trim();
+        raw_stream_log.extend_from_slice(&chunk);
+        pending_line.extend_from_slice(&chunk);
+
+        while let Some(newline_index) = pending_line.iter().position(|byte| *byte == b'\n') {
+            let line_bytes: Vec<u8> = pending_line.drain(..=newline_index).collect();
+            let line = String::from_utf8_lossy(&line_bytes);
+            let line = line.trim_end_matches(['\r', '\n']).trim();
             if line.is_empty() { continue; }
-            if line == "data: [DONE]" { break; }
+            if line == "data: [DONE]" {
+                is_done = true;
+                break;
+            }
             
             if let Some(data_str) = line.strip_prefix("data: ") {
                 if let Ok(json) = serde_json::from_str::<OpenAIResponse>(data_str) {
@@ -105,9 +112,13 @@ async fn translate(
                 }
             }
         }
+
+        if is_done {
+            break;
+        }
     }
 
-    Ok(raw_stream_log)
+    Ok(String::from_utf8_lossy(&raw_stream_log).into_owned())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
