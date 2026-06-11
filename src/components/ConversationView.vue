@@ -291,7 +291,8 @@ const evaluateMessage = async (messageId: string, force = false) => {
   conversationStore.updateChatMessage(activeSession.value.id, messageId, { isEvaluating: true, evaluation: undefined });
 
   const historyLimit = 10;
-  const recentMessages = activeSession.value.messages.filter(m => m.id !== messageId).slice(-historyLimit);
+  const messageIndex = activeSession.value.messages.findIndex(m => m.id === messageId);
+  const recentMessages = activeSession.value.messages.slice(Math.max(0, messageIndex - historyLimit), messageIndex);
   // 净化历史：只提供原文流
   const historyBlock = recentMessages.map(m => {
     const senderName = m.sender === 'me' ? activeSession.value!.me.name : activeSession.value!.partner.name;
