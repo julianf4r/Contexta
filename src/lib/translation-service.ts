@@ -167,7 +167,7 @@ export async function executeTranslationRequest({
       requestId,
     });
 
-    logger.addLog('response', payload.stream ? response : safeParseJson(response) ?? response);
+    logger.addLog('response', payload.stream ? createStreamingResponseLog(response) : safeParseJson(response) ?? response);
     return response;
   } catch (error) {
     logger.addLog('error', String(error));
@@ -200,6 +200,18 @@ export function extractStreamedAssistantContent(response: string) {
     .filter(Boolean)
     .map((parsed) => parsed.choices?.[0]?.delta?.content || '')
     .join('');
+}
+
+function createStreamingResponseLog(response: string) {
+  const lines = response.split(/\r?\n/).map((line) => line.trim());
+  const eventCount = lines.filter((line) => line.startsWith('data: ') && line !== 'data: [DONE]').length;
+
+  return {
+    streamed: true,
+    content: extractStreamedAssistantContent(response),
+    rawLength: response.length,
+    eventCount,
+  };
 }
 
 export function tryParseEvaluationResult(raw?: string) {
