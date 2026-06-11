@@ -111,7 +111,7 @@ const view = ref<'translate' | 'conversation' | 'settings' | 'logs' | 'history'>
         {{ settings.modelName }}
       </div>
       <div class="text-[10px] text-slate-400 dark:text-slate-500">
-        Client v{{ pkg.version }}
+        v{{ pkg.version }}
       </div>
     </footer>
   </div>

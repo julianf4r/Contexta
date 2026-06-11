@@ -468,7 +468,7 @@ dependencies = [
 
 [[package]]
 name = "contexta"
-version = "0.3.10"
+version = "0.3.11"
 dependencies = [
  "futures-util",
  "reqwest 0.12.28",
