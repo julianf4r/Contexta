@@ -138,6 +138,7 @@ export const useSettingsStore = defineStore('settings', () => {
   const apiKey = useLocalStorage('api-key', '');
   const modelName = useLocalStorage('model-name', 'translategemma:12b');
   const profiles = useLocalStorage<ApiProfile[]>('api-profiles', []);
+  const backTranslationApiKey = useLocalStorage('back-translation-api-key', '');
   const enableStreaming = useLocalStorage('enable-streaming', true);
   const systemPromptTemplate = useLocalStorage('system-prompt-template', DEFAULT_TEMPLATE);
   
@@ -174,6 +175,7 @@ export const useSettingsStore = defineStore('settings', () => {
     apiKey,
     modelName,
     profiles,
+    backTranslationApiKey,
     enableStreaming,
     systemPromptTemplate,
     enableEvaluation,

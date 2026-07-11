@@ -4,7 +4,7 @@ import {
   Plus, Search, Trash2, Send, User, Type, ChevronDown, Check, 
   MessageSquare, Loader2, Copy, 
   X, Sparkles, Languages, Venus, Mars, CircleSlash,
-  ShieldCheck, RotateCcw
+  ShieldCheck, RotateCcw, RefreshCcw
 } from 'lucide-vue-next';
 import { 
   useSettingsStore,
@@ -20,6 +20,7 @@ import { useLogsStore } from '../stores/logs';
 import { cn } from '../lib/utils';
 import { listen } from '@tauri-apps/api/event';
 import { useClipboard } from '../composables/useClipboard';
+import { executeBackTranslation, formatBackTranslationError } from '../lib/back-translation-service';
 import {
   buildConversationEvaluationSystemPrompt,
   buildConversationEvaluationUserPrompt,
@@ -179,7 +180,13 @@ const translateMessage = async (sender: 'me' | 'partner', retranslateId?: string
     if (!msg) return;
     text = msg.original;
     messageId = retranslateId;
-    conversationStore.updateChatMessage(activeSession.value.id, messageId, { translated: '', evaluation: undefined });
+    conversationStore.updateChatMessage(activeSession.value.id, messageId, {
+      translated: '',
+      evaluation: undefined,
+      backTranslation: undefined,
+      backTranslationError: undefined,
+      isBackTranslating: false,
+    });
   } else {
     text = sender === 'me' ? myInput.value.trim() : partnerInput.value.trim();
     if (!text) return;
@@ -273,6 +280,53 @@ const translateMessage = async (sender: 'me' | 'partner', retranslateId?: string
 const deleteMessage = (messageId: string) => {
   if (!activeSession.value) return;
   conversationStore.deleteChatMessage(activeSession.value.id, messageId);
+};
+
+const backTranslateMessage = async (messageId: string) => {
+  if (!activeSession.value) return;
+  const sessionId = activeSession.value.id;
+  const msg = activeSession.value.messages.find(m => m.id === messageId);
+  if (!msg?.translated || msg.isBackTranslating) return;
+
+  conversationStore.updateChatMessage(sessionId, messageId, {
+    backTranslation: undefined,
+    backTranslationError: undefined,
+  });
+
+  if (!settings.backTranslationApiKey.trim()) {
+    conversationStore.updateChatMessage(sessionId, messageId, {
+      backTranslationError: '请先在设置的“回译引擎”中配置 API Key。',
+    });
+    return;
+  }
+
+  const originalLanguage = msg.sender === 'me' ? activeSession.value.me.language : activeSession.value.partner.language;
+  const translatedLanguage = msg.sender === 'me' ? activeSession.value.partner.language : activeSession.value.me.language;
+
+  conversationStore.updateChatMessage(sessionId, messageId, { isBackTranslating: true });
+  try {
+    const result = await executeBackTranslation({
+      apiKey: settings.backTranslationApiKey,
+      text: msg.translated,
+      translatedLanguage,
+      originalLanguage,
+    });
+    conversationStore.updateChatMessage(sessionId, messageId, { backTranslation: result });
+  } catch (error) {
+    conversationStore.updateChatMessage(sessionId, messageId, {
+      backTranslationError: formatBackTranslationError(error),
+    });
+  } finally {
+    conversationStore.updateChatMessage(sessionId, messageId, { isBackTranslating: false });
+  }
+};
+
+const clearMessageBackTranslation = (messageId: string) => {
+  if (!activeSession.value) return;
+  conversationStore.updateChatMessage(activeSession.value.id, messageId, {
+    backTranslation: undefined,
+    backTranslationError: undefined,
+  });
 };
 
 const evaluateMessage = async (messageId: string, force = false) => {
@@ -373,7 +427,13 @@ const refineMessage = async (messageId: string) => {
   const currentTranslation = msg.translated;
 
   isAuditModalOpen.value = false; // 关闭弹窗开始润色
-  conversationStore.updateChatMessage(activeSession.value.id, messageId, { isRefining: true, translated: '' });
+  conversationStore.updateChatMessage(activeSession.value.id, messageId, {
+    isRefining: true,
+    translated: '',
+    backTranslation: undefined,
+    backTranslationError: undefined,
+    isBackTranslating: false,
+  });
   currentStreamingMessageId.value = messageId;
 
   const historyLimit = 10;
@@ -598,10 +658,51 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 </p>
               </div>
 
-              <!-- Action Tools (Copy, Evaluate, Refine) -->
+              <!-- Back Translation -->
+              <div
+                v-if="msg.isBackTranslating || msg.backTranslation || msg.backTranslationError"
+                :class="cn(
+                  'mt-3 pt-3 border-t',
+                  msg.sender === 'me' ? 'border-blue-400/50' : 'border-slate-200 dark:border-slate-700'
+                )"
+              >
+                <div class="flex items-center justify-between gap-3 mb-1.5">
+                  <div :class="cn('flex items-center gap-1.5 text-[10px] font-bold', msg.sender === 'me' ? 'text-blue-100' : 'text-cyan-700 dark:text-cyan-400')">
+                    <RefreshCcw class="w-3 h-3" />
+                    回译
+                  </div>
+                  <div class="flex items-center gap-0.5">
+                    <button
+                      v-if="msg.backTranslation"
+                      @click="copyWithFeedback(msg.backTranslation, `back-translation-${msg.id}`)"
+                      :class="cn('p-1 rounded transition-colors', msg.sender === 'me' ? 'hover:bg-blue-500' : 'hover:bg-slate-100 dark:hover:bg-slate-700')"
+                      title="复制回译"
+                    >
+                      <Check v-if="activeCopyId === `back-translation-${msg.id}`" class="w-3 h-3 text-green-400" />
+                      <Copy v-else :class="cn('w-3 h-3', msg.sender === 'me' ? 'text-blue-100' : 'text-slate-400')" />
+                    </button>
+                    <button
+                      @click="clearMessageBackTranslation(msg.id)"
+                      :disabled="msg.isBackTranslating"
+                      :class="cn('p-1 rounded transition-colors disabled:opacity-30', msg.sender === 'me' ? 'hover:bg-blue-500' : 'hover:bg-slate-100 dark:hover:bg-slate-700')"
+                      title="关闭回译"
+                    >
+                      <X :class="cn('w-3 h-3', msg.sender === 'me' ? 'text-blue-100' : 'text-slate-400')" />
+                    </button>
+                  </div>
+                </div>
+                <div v-if="msg.isBackTranslating" :class="cn('flex items-center gap-2 text-xs', msg.sender === 'me' ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400')">
+                  <Loader2 class="w-3.5 h-3.5 animate-spin" />
+                  正在回译...
+                </div>
+                <p v-else-if="msg.backTranslationError" class="text-xs text-red-500 dark:text-red-400 leading-relaxed">{{ msg.backTranslationError }}</p>
+                <p v-else :class="cn('text-sm leading-relaxed whitespace-pre-wrap', msg.sender === 'me' ? 'text-blue-50' : 'text-slate-600 dark:text-slate-300')">{{ msg.backTranslation }}</p>
+              </div>
+
+              <!-- Action Tools -->
               <div :class="cn(
                 'absolute top-0 opacity-0 group-hover:opacity-100 transition-opacity flex items-center bg-white/90 dark:bg-slate-800/90 rounded-full shadow-lg border dark:border-slate-700 px-1 py-1 z-20',
-                msg.sender === 'me' ? '-left-32' : '-right-32'
+                msg.sender === 'me' ? 'right-full mr-2' : 'left-full ml-2'
               )">
                 <button 
                   @click="copyWithFeedback(msg.translated, msg.id)"
@@ -613,16 +714,25 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 </button>
                 <button 
                   @click="translateMessage(msg.sender, msg.id)"
-                  :disabled="isTranslating || msg.isEvaluating || msg.isRefining"
+                  :disabled="isTranslating || msg.isEvaluating || msg.isRefining || msg.isBackTranslating"
                   class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-30"
                   title="重新翻译"
                 >
                   <RotateCcw v-if="isTranslating && currentStreamingMessageId === msg.id" class="w-3.5 h-3.5 animate-spin text-blue-500" />
                   <RotateCcw v-else class="w-3.5 h-3.5 text-slate-400" />
                 </button>
+                <button
+                  @click="backTranslateMessage(msg.id)"
+                  :disabled="isTranslating || msg.isEvaluating || msg.isRefining || msg.isBackTranslating || !msg.translated"
+                  class="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 rounded-full transition-colors disabled:opacity-30"
+                  title="回译"
+                >
+                  <Loader2 v-if="msg.isBackTranslating" class="w-3.5 h-3.5 animate-spin text-cyan-500" />
+                  <RefreshCcw v-else class="w-3.5 h-3.5 text-slate-400" />
+                </button>
                 <button 
                   @click="evaluateMessage(msg.id)"
-                  :disabled="msg.isEvaluating || msg.isRefining"
+                  :disabled="msg.isEvaluating || msg.isRefining || msg.isBackTranslating"
                   class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-30"
                   title="审计翻译"
                 >

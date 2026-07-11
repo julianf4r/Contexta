@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Play, Settings, Type, Save, Check, Plus, Trash2, ChevronDown, Eye, EyeOff, Pencil, MessageSquare } from 'lucide-vue-next';
+import { Play, Settings, Type, Save, Check, Plus, Trash2, ChevronDown, Eye, EyeOff, Pencil, MessageSquare, RefreshCcw } from 'lucide-vue-next';
 import { 
   useSettingsStore, 
   DEFAULT_TEMPLATE, 
@@ -14,8 +14,9 @@ import type { ApiProfile } from '../domain/translation';
 import { cn } from '../lib/utils';
 
 const settings = useSettingsStore();
-const settingsCategory = ref<'api' | 'general' | 'prompts' | 'chat-prompts'>('api');
+const settingsCategory = ref<'api' | 'back-translation' | 'general' | 'prompts' | 'chat-prompts'>('api');
 const showApiKey = ref(false);
+const showBackTranslationApiKey = ref(false);
 
 const newProfileName = ref('');
 const isSavingProfile = ref(false);
@@ -113,6 +114,18 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 <Play class="w-4 h-4" />
               </div>
               API 与模型
+            </button>
+            <button
+              @click="settingsCategory = 'back-translation'"
+              :class="cn(
+                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
+                settingsCategory === 'back-translation' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/50'
+              )"
+            >
+              <div :class="cn('p-1.5 rounded-md', settingsCategory === 'back-translation' ? 'bg-blue-100 dark:bg-blue-900/50' : 'bg-slate-100 dark:bg-slate-800')">
+                <RefreshCcw class="w-4 h-4" />
+              </div>
+              回译引擎
             </button>
             <button 
               @click="settingsCategory = 'general'"
@@ -316,6 +329,58 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                     </div>
                   </div>                </div>
               </section>
+            </template>
+
+            <!-- Back Translation -->
+            <template v-if="settingsCategory === 'back-translation'">
+              <div class="mb-6 border-b dark:border-slate-800 pb-4">
+                <h1 class="text-2xl font-bold text-slate-800 dark:text-slate-100">回译引擎</h1>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">使用 Google Cloud Translation 将译文翻回原语言。</p>
+              </div>
+
+              <div class="bg-white/80 dark:bg-slate-900 rounded-2xl shadow-sm border dark:border-slate-800 p-6 space-y-5">
+                <div class="flex items-center justify-between">
+                  <div class="flex items-center gap-3">
+                    <div class="w-10 h-10 rounded-lg bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center text-blue-600 dark:text-blue-400">
+                      <RefreshCcw class="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h2 class="text-sm font-semibold text-slate-800 dark:text-slate-200">Google Cloud Translation API v2</h2>
+                      <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Cloud Translation Basic</p>
+                    </div>
+                  </div>
+                  <span :class="cn(
+                    'px-2.5 py-1 rounded-full text-[10px] font-bold',
+                    settings.backTranslationApiKey ? 'bg-green-50 text-green-700 dark:bg-green-900/30 dark:text-green-400' : 'bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400'
+                  )">
+                    {{ settings.backTranslationApiKey ? '已配置' : '未配置' }}
+                  </span>
+                </div>
+
+                <div class="h-px bg-slate-100 dark:bg-slate-800"></div>
+
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-slate-700 dark:text-slate-300">API Key</label>
+                  <div class="relative">
+                    <input
+                      v-model="settings.backTranslationApiKey"
+                      :type="showBackTranslationApiKey ? 'text' : 'password'"
+                      class="w-full pl-4 pr-12 py-2.5 border dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-950 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all font-mono text-sm text-slate-900 dark:text-slate-100"
+                      placeholder="AIza..."
+                    />
+                    <button
+                      @click="showBackTranslationApiKey = !showBackTranslationApiKey"
+                      type="button"
+                      class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors focus:outline-none"
+                      title="显示或隐藏 API Key"
+                    >
+                      <Eye v-if="showBackTranslationApiKey" class="w-5 h-5" />
+                      <EyeOff v-else class="w-5 h-5" />
+                    </button>
+                  </div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">请确保对应 Google Cloud 项目已启用 Cloud Translation API。</p>
+                </div>
+              </div>
             </template>
 
             <!-- General Settings -->

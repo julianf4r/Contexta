@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
-import { ChevronDown, Check, ArrowRightLeft, Trash2, FileText, Plus, Loader2, Send, User, Type, Copy, Save } from 'lucide-vue-next';
+import { ChevronDown, Check, ArrowRightLeft, Trash2, FileText, Plus, Loader2, Send, User, Type, Copy, Save, RefreshCcw, X } from 'lucide-vue-next';
 import { listen } from '@tauri-apps/api/event';
 import { LANGUAGES, SPEAKER_IDENTITY_OPTIONS, TONE_REGISTER_OPTIONS } from '../domain/translation';
 import { useSettingsStore } from '../stores/settings';
@@ -10,6 +10,7 @@ import { useLogsStore } from '../stores/logs';
 import { useTranslationWorkspaceStore } from '../stores/translation-workspace';
 import { cn } from '../lib/utils';
 import { useClipboard } from '../composables/useClipboard';
+import { executeBackTranslation, formatBackTranslationError } from '../lib/back-translation-service';
 import {
   buildSingleEvaluationSystemPrompt,
   buildSingleEvaluationUserPrompt,
@@ -38,6 +39,9 @@ const {
   sourceText,
   context,
   targetText,
+  backTranslationText,
+  backTranslationError,
+  isBackTranslating,
   isTranslating,
   currentHistoryId,
   evaluationResult,
@@ -52,6 +56,12 @@ const sourceDropdownOpen = ref(false);
 const targetDropdownOpen = ref(false);
 const speakerDropdownOpen = ref(false);
 const toneDropdownOpen = ref(false);
+let backTranslationRequestId = 0;
+
+const clearBackTranslation = () => {
+  backTranslationRequestId += 1;
+  workspaceStore.resetBackTranslation();
+};
 
 const closeAllDropdowns = () => {
   sourceDropdownOpen.value = false;
@@ -95,12 +105,12 @@ onUnmounted(() => { if (unlisten) unlisten(); });
 
 const sourceLangCode = computed({
   get: () => settings.sourceLang.code,
-  set: (code) => { const lang = LANGUAGES.find(l => l.code === code); if (lang) settings.sourceLang = lang; }
+  set: (code) => { const lang = LANGUAGES.find(l => l.code === code); if (lang) { settings.sourceLang = lang; clearBackTranslation(); } }
 });
 
 const targetLangCode = computed({
   get: () => settings.targetLang.code,
-  set: (code) => { const lang = LANGUAGES.find(l => l.code === code); if (lang) settings.targetLang = lang; }
+  set: (code) => { const lang = LANGUAGES.find(l => l.code === code); if (lang) { settings.targetLang = lang; clearBackTranslation(); } }
 });
 
 const sourceLang = computed(() => settings.sourceLang);
@@ -113,14 +123,44 @@ const swapLanguages = () => {
   const temp = { ...settings.sourceLang };
   settings.sourceLang = { ...settings.targetLang };
   settings.targetLang = temp;
+  clearBackTranslation();
 };
 
 const clearSource = () => {
+  clearBackTranslation();
   workspaceStore.clearWorkspace();
 };
 
 const toggleSuggestion = (id: number) => {
   workspaceStore.toggleSuggestion(id);
+};
+
+const backTranslate = async () => {
+  if (!targetText.value.trim() || isBackTranslating.value) return;
+
+  const requestId = ++backTranslationRequestId;
+  workspaceStore.resetBackTranslation();
+  if (!settings.backTranslationApiKey.trim()) {
+    backTranslationError.value = '请先在设置的“回译引擎”中配置 API Key。';
+    return;
+  }
+
+  isBackTranslating.value = true;
+  try {
+    const result = await executeBackTranslation({
+      apiKey: settings.backTranslationApiKey,
+      text: targetText.value,
+      translatedLanguage: targetLang.value,
+      originalLanguage: sourceLang.value,
+    });
+    if (requestId === backTranslationRequestId) backTranslationText.value = result;
+  } catch (error) {
+    if (requestId === backTranslationRequestId) {
+      backTranslationError.value = formatBackTranslationError(error);
+    }
+  } finally {
+    if (requestId === backTranslationRequestId) isBackTranslating.value = false;
+  }
 };
 
 const evaluateTranslation = async () => {
@@ -177,6 +217,7 @@ const refineTranslation = async () => {
   if (!selectedTexts || selectedTexts.length === 0) return;
 
   isRefining.value = true;
+  clearBackTranslation();
   const originalTranslation = targetText.value;
   targetText.value = ''; 
 
@@ -242,6 +283,7 @@ const translate = async () => {
   if (!sourceText.value.trim() || isTranslating.value) return;
 
   isTranslating.value = true;
+  clearBackTranslation();
   currentHistoryId.value = null;
   targetText.value = '';
   evaluationResult.value = null;
@@ -386,7 +428,7 @@ const translate = async () => {
           
                     <div class="p-4 border-t dark:border-slate-800 bg-slate-50/30 dark:bg-transparent flex justify-end shrink-0">            <button 
               @click="translate"
-              :disabled="isTranslating || isEvaluating || isRefining || !sourceText.trim()"
+              :disabled="isTranslating || isEvaluating || isRefining || isBackTranslating || !sourceText.trim()"
               class="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900/40 text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 shadow-sm"
             >
               <Loader2 v-if="isTranslating" class="w-4 h-4 animate-spin" />
@@ -525,6 +567,15 @@ const translate = async () => {
             </div>
 
             <div class="ml-auto flex items-center gap-2">
+              <button
+                @click="backTranslate"
+                :disabled="isBackTranslating || isTranslating || isEvaluating || isRefining || !targetText.trim()"
+                class="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors disabled:opacity-30"
+                title="回译"
+              >
+                <Loader2 v-if="isBackTranslating" class="w-4 h-4 animate-spin text-blue-500" />
+                <RefreshCcw v-else class="w-4 h-4 text-slate-500 dark:text-slate-400" />
+              </button>
               <button @click="copyWithFeedback(targetText, 'main-target')" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors relative" title="复制结果">
                 <Check v-if="activeCopyId === 'main-target'" class="w-4 h-4 text-green-600" />
                 <Copy v-else class="w-4 h-4 text-slate-500 dark:text-slate-400" />
@@ -536,6 +587,44 @@ const translate = async () => {
               {{ targetText }}
             </template>
             <span v-else class="text-slate-300 dark:text-slate-600 italic">翻译结果将在此显示...</span>
+          </div>
+
+          <!-- Back Translation -->
+          <div
+            v-if="isBackTranslating || backTranslationText || backTranslationError"
+            class="px-6 py-4 bg-cyan-50/60 dark:bg-cyan-950/20 border-t border-cyan-100 dark:border-cyan-900/40 shrink-0"
+          >
+            <div class="flex items-center justify-between gap-4 mb-2">
+              <div class="flex items-center gap-2 min-w-0">
+                <RefreshCcw class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
+                <h3 class="text-xs font-bold text-cyan-700 dark:text-cyan-300">回译 · {{ sourceLang.displayName }}</h3>
+              </div>
+              <div class="flex items-center gap-1 shrink-0">
+                <button
+                  v-if="backTranslationText"
+                  @click="copyWithFeedback(backTranslationText, 'main-back-translation')"
+                  class="p-1.5 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 rounded-md transition-colors"
+                  title="复制回译"
+                >
+                  <Check v-if="activeCopyId === 'main-back-translation'" class="w-3.5 h-3.5 text-green-600" />
+                  <Copy v-else class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+                </button>
+                <button
+                  @click="clearBackTranslation"
+                  :disabled="isBackTranslating"
+                  class="p-1.5 hover:bg-cyan-100 dark:hover:bg-cyan-900/30 rounded-md transition-colors disabled:opacity-30"
+                  title="关闭回译"
+                >
+                  <X class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />
+                </button>
+              </div>
+            </div>
+            <div v-if="isBackTranslating" class="flex items-center gap-2 text-sm text-cyan-700 dark:text-cyan-300">
+              <Loader2 class="w-4 h-4 animate-spin" />
+              正在回译...
+            </div>
+            <p v-else-if="backTranslationError" class="text-sm text-red-600 dark:text-red-400 leading-relaxed">{{ backTranslationError }}</p>
+            <p v-else class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto custom-scrollbar">{{ backTranslationText }}</p>
           </div>
 
           <!-- Evaluation Results -->
@@ -633,7 +722,7 @@ const translate = async () => {
             <button 
               @click="refineTranslation"
               v-if="evaluationResult && evaluationResult.suggestions && evaluationResult.suggestions.length > 0"
-              :disabled="isRefining || isEvaluating || isTranslating || selectedSuggestionIds.length === 0"
+              :disabled="isRefining || isEvaluating || isTranslating || isBackTranslating || selectedSuggestionIds.length === 0"
               class="bg-blue-600 enabled:hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900/40 text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 shadow-sm"
             >
               <Loader2 v-if="isRefining" class="w-4 h-4 animate-spin" />
@@ -642,7 +731,7 @@ const translate = async () => {
             </button>
             <button 
               @click="evaluateTranslation"
-              :disabled="isEvaluating || isTranslating || isRefining || !targetText.trim()"
+              :disabled="isEvaluating || isTranslating || isRefining || isBackTranslating || !targetText.trim()"
               class="bg-blue-600 enabled:hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900/40 text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 shadow-sm"
             >
               <Loader2 v-if="isEvaluating" class="w-4 h-4 animate-spin" />

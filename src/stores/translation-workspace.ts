@@ -6,6 +6,9 @@ export const useTranslationWorkspaceStore = defineStore('translationWorkspace', 
   const sourceText = ref('');
   const context = ref('');
   const targetText = ref('');
+  const backTranslationText = ref('');
+  const backTranslationError = ref('');
+  const isBackTranslating = ref(false);
   const isTranslating = ref(false);
   const currentHistoryId = ref<string | null>(null);
 
@@ -22,9 +25,16 @@ export const useTranslationWorkspaceStore = defineStore('translationWorkspace', 
     appliedSuggestionIds.value = [];
   };
 
+  const resetBackTranslation = () => {
+    backTranslationText.value = '';
+    backTranslationError.value = '';
+    isBackTranslating.value = false;
+  };
+
   const clearWorkspace = () => {
     sourceText.value = '';
     targetText.value = '';
+    resetBackTranslation();
     resetEvaluationState();
   };
 
@@ -38,6 +48,9 @@ export const useTranslationWorkspaceStore = defineStore('translationWorkspace', 
     sourceText,
     context,
     targetText,
+    backTranslationText,
+    backTranslationError,
+    isBackTranslating,
     isTranslating,
     currentHistoryId,
     evaluationResult,
@@ -47,6 +60,7 @@ export const useTranslationWorkspaceStore = defineStore('translationWorkspace', 
     appliedSuggestionIds,
     activeStreamRequestId,
     resetEvaluationState,
+    resetBackTranslation,
     clearWorkspace,
     toggleSuggestion,
   };
