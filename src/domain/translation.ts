@@ -23,9 +23,9 @@ export const LANGUAGES: Language[] = [
 ];
 
 export const SPEAKER_IDENTITY_OPTIONS = [
+  { label: '自动', value: 'Auto-detect' },
   { label: '男性', value: 'Male' },
   { label: '女性', value: 'Female' },
-  { label: '中性', value: 'Gender-neutral' },
 ] as const;
 
 export const TONE_REGISTER_OPTIONS = [

@@ -51,13 +51,13 @@ const messageContainer = ref<HTMLElement | null>(null);
 // New Session Form
 const newSessionMe = ref<Participant>({
   name: '我',
-  gender: 'Male',
+  gender: SPEAKER_IDENTITY_OPTIONS[0].value,
   language: LANGUAGES[0],
   tone: TONE_REGISTER_OPTIONS[3].value // 礼貌随和
 });
 const newSessionPartner = ref<Participant>({
   name: '对方',
-  gender: 'Female',
+  gender: SPEAKER_IDENTITY_OPTIONS[0].value,
   language: LANGUAGES[4], // 西班牙语
   tone: 'Auto-detect'
 });
@@ -838,7 +838,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                   <div class="space-y-1.5">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase">性别</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">语法性别</label>
                     <div class="relative">
                       <button 
                         @click.stop="closeAllModalDropdowns(); meGenderDropdownOpen = !meGenderDropdownOpen"
@@ -887,7 +887,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 </div>
                 <div class="grid grid-cols-2 gap-4">
                    <div class="space-y-1.5">
-                    <label class="text-[10px] font-bold text-slate-400 uppercase">性别</label>
+                    <label class="text-[10px] font-bold text-slate-400 uppercase">语法性别</label>
                     <div class="relative">
                       <button 
                         @click.stop="closeAllModalDropdowns(); partnerGenderDropdownOpen = !partnerGenderDropdownOpen"

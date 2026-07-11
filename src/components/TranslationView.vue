@@ -106,7 +106,7 @@ const targetLangCode = computed({
 const sourceLang = computed(() => settings.sourceLang);
 const targetLang = computed(() => settings.targetLang);
 
-const currentSpeakerLabel = computed(() => SPEAKER_IDENTITY_OPTIONS.find(opt => opt.value === settings.speakerIdentity)?.label || '男性');
+const currentSpeakerLabel = computed(() => SPEAKER_IDENTITY_OPTIONS.find(opt => opt.value === settings.speakerIdentity)?.label || '自动');
 const currentToneLabel = computed(() => TONE_REGISTER_OPTIONS.find(opt => opt.value === settings.toneRegister)?.label || '正式专业');
 
 const swapLanguages = () => {
@@ -442,7 +442,7 @@ const translate = async () => {
               <button 
                 @click.stop="toggleDropdown('speaker')"
                 class="flex items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-700/60 transition-colors text-sm font-medium text-slate-600 dark:text-slate-300 w-full justify-between group"
-                title="说话人身份"
+                title="说话者语法性别"
               >
                 <div class="flex items-center gap-1.5 truncate">
                   <User class="w-3.5 h-3.5 text-slate-400" />
