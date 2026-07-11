@@ -10,7 +10,7 @@ import {
   CONVERSATION_EVALUATION_PROMPT_TEMPLATE,
   CONVERSATION_REFINEMENT_PROMPT_TEMPLATE
 } from '../stores/settings';
-import type { ApiProfile } from '../domain/translation';
+import { LANGUAGES, type ApiProfile } from '../domain/translation';
 import { cn } from '../lib/utils';
 
 const settings = useSettingsStore();
@@ -74,8 +74,16 @@ const saveEditProfile = () => {
 };
 
 const evaluationProfileDropdownOpen = ref(false);
+const backTranslationLanguageDropdownOpen = ref(false);
 const toggleDropdown = (type: string) => {
-  if (type === 'evaluationProfile') evaluationProfileDropdownOpen.value = !evaluationProfileDropdownOpen.value;
+  if (type === 'evaluationProfile') {
+    backTranslationLanguageDropdownOpen.value = false;
+    evaluationProfileDropdownOpen.value = !evaluationProfileDropdownOpen.value;
+  }
+  if (type === 'backTranslationLanguage') {
+    evaluationProfileDropdownOpen.value = false;
+    backTranslationLanguageDropdownOpen.value = !backTranslationLanguageDropdownOpen.value;
+  }
 };
 
 const currentEvaluationProfileLabel = computed(() => {
@@ -84,10 +92,16 @@ const currentEvaluationProfileLabel = computed(() => {
   return profile ? `${profile.name} — ${profile.modelName}` : '使用主翻译配置（默认）';
 });
 
+const currentBackTranslationLanguageLabel = computed(() => {
+  if (settings.backTranslationTargetLanguageCode === 'source') return '原文语言（默认）';
+  return LANGUAGES.find(language => language.code === settings.backTranslationTargetLanguageCode)?.displayName || '原文语言（默认）';
+});
+
 const handleGlobalClick = (e: MouseEvent) => {
   const target = e.target as HTMLElement;
   if (!target.closest('.lang-dropdown')) {
     evaluationProfileDropdownOpen.value = false;
+    backTranslationLanguageDropdownOpen.value = false;
   }
 };
 
@@ -379,6 +393,50 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                     </button>
                   </div>
                   <p class="text-xs text-slate-500 dark:text-slate-400">请确保对应 Google Cloud 项目已启用 Cloud Translation API。</p>
+                </div>
+
+                <div class="h-px bg-slate-100 dark:bg-slate-800"></div>
+
+                <div class="space-y-2">
+                  <label class="text-sm font-medium text-slate-700 dark:text-slate-300">回译目标语言</label>
+                  <div class="relative lang-dropdown max-w-md">
+                    <button
+                      @click.stop="toggleDropdown('backTranslationLanguage')"
+                      class="flex items-center justify-between w-full px-4 py-2.5 border dark:border-slate-700 rounded-xl bg-slate-50/50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-sm text-slate-700 dark:text-slate-200"
+                    >
+                      <span class="font-medium">{{ currentBackTranslationLanguageLabel }}</span>
+                      <ChevronDown :class="cn('w-4 h-4 text-slate-400 transition-transform', backTranslationLanguageDropdownOpen && 'rotate-180')" />
+                    </button>
+                    <div
+                      v-if="backTranslationLanguageDropdownOpen"
+                      class="absolute left-0 top-full mt-2 w-full max-h-72 overflow-y-auto bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-2 custom-scrollbar"
+                    >
+                      <button
+                        @click="settings.backTranslationTargetLanguageCode = 'source'; backTranslationLanguageDropdownOpen = false"
+                        :class="cn(
+                          'w-full px-4 py-2.5 text-sm text-left transition-colors flex items-center justify-between',
+                          settings.backTranslationTargetLanguageCode === 'source' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                        )"
+                      >
+                        原文语言（默认）
+                        <Check v-if="settings.backTranslationTargetLanguageCode === 'source'" class="w-4 h-4" />
+                      </button>
+                      <div class="h-px bg-slate-100 dark:bg-slate-700 my-1 mx-2"></div>
+                      <button
+                        v-for="language in LANGUAGES"
+                        :key="language.code"
+                        @click="settings.backTranslationTargetLanguageCode = language.code; backTranslationLanguageDropdownOpen = false"
+                        :class="cn(
+                          'w-full px-4 py-2.5 text-sm text-left transition-colors flex items-center justify-between',
+                          settings.backTranslationTargetLanguageCode === language.code ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+                        )"
+                      >
+                        {{ language.displayName }}
+                        <Check v-if="settings.backTranslationTargetLanguageCode === language.code" class="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                  <p class="text-xs text-slate-500 dark:text-slate-400">选择“原文语言”时，每次回译会自动使用对应内容的原始语言。</p>
                 </div>
               </div>
             </template>

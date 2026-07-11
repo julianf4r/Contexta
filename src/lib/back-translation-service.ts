@@ -1,11 +1,11 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { Language } from '../domain/translation';
+import { LANGUAGES, type Language } from '../domain/translation';
 
 interface BackTranslationOptions {
   apiKey: string;
   text: string;
   translatedLanguage: Language;
-  originalLanguage: Language;
+  targetLanguage: Language;
 }
 
 function toGoogleLanguageCode(language: Language) {
@@ -26,17 +26,22 @@ export async function executeBackTranslation({
   apiKey,
   text,
   translatedLanguage,
-  originalLanguage,
+  targetLanguage,
 }: BackTranslationOptions) {
   const translatedText = await invoke<string>('back_translate', {
     apiKey,
     text,
     sourceLanguage: toGoogleLanguageCode(translatedLanguage),
-    targetLanguage: toGoogleLanguageCode(originalLanguage),
+    targetLanguage: toGoogleLanguageCode(targetLanguage),
   });
 
   const parsed = new DOMParser().parseFromString(translatedText, 'text/html');
   return parsed.documentElement.textContent || translatedText;
+}
+
+export function resolveBackTranslationTargetLanguage(originalLanguage: Language, configuredCode: string) {
+  if (configuredCode === 'source') return originalLanguage;
+  return LANGUAGES.find(language => language.code === configuredCode) || originalLanguage;
 }
 
 export function formatBackTranslationError(error: unknown) {

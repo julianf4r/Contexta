@@ -10,7 +10,7 @@ import { useLogsStore } from '../stores/logs';
 import { useTranslationWorkspaceStore } from '../stores/translation-workspace';
 import { cn } from '../lib/utils';
 import { useClipboard } from '../composables/useClipboard';
-import { executeBackTranslation, formatBackTranslationError } from '../lib/back-translation-service';
+import { executeBackTranslation, formatBackTranslationError, resolveBackTranslationTargetLanguage } from '../lib/back-translation-service';
 import {
   buildSingleEvaluationSystemPrompt,
   buildSingleEvaluationUserPrompt,
@@ -40,6 +40,7 @@ const {
   context,
   targetText,
   backTranslationText,
+  backTranslationLanguageCode,
   backTranslationError,
   isBackTranslating,
   isTranslating,
@@ -115,6 +116,13 @@ const targetLangCode = computed({
 
 const sourceLang = computed(() => settings.sourceLang);
 const targetLang = computed(() => settings.targetLang);
+const backTranslationTargetLanguage = computed(() =>
+  resolveBackTranslationTargetLanguage(sourceLang.value, settings.backTranslationTargetLanguageCode)
+);
+const backTranslationLanguageLabel = computed(() =>
+  LANGUAGES.find(language => language.code === backTranslationLanguageCode.value)?.displayName
+    || backTranslationTargetLanguage.value.displayName
+);
 
 const currentSpeakerLabel = computed(() => SPEAKER_IDENTITY_OPTIONS.find(opt => opt.value === settings.speakerIdentity)?.label || '自动');
 const currentToneLabel = computed(() => TONE_REGISTER_OPTIONS.find(opt => opt.value === settings.toneRegister)?.label || '正式专业');
@@ -147,13 +155,17 @@ const backTranslate = async () => {
 
   isBackTranslating.value = true;
   try {
+    const targetLanguage = backTranslationTargetLanguage.value;
     const result = await executeBackTranslation({
       apiKey: settings.backTranslationApiKey,
       text: targetText.value,
       translatedLanguage: targetLang.value,
-      originalLanguage: sourceLang.value,
+      targetLanguage,
     });
-    if (requestId === backTranslationRequestId) backTranslationText.value = result;
+    if (requestId === backTranslationRequestId) {
+      backTranslationText.value = result;
+      backTranslationLanguageCode.value = targetLanguage.code;
+    }
   } catch (error) {
     if (requestId === backTranslationRequestId) {
       backTranslationError.value = formatBackTranslationError(error);
@@ -597,7 +609,7 @@ const translate = async () => {
             <div class="flex items-center justify-between gap-4 mb-2">
               <div class="flex items-center gap-2 min-w-0">
                 <RefreshCcw class="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400 shrink-0" />
-                <h3 class="text-xs font-bold text-cyan-700 dark:text-cyan-300">回译 · {{ sourceLang.displayName }}</h3>
+                <h3 class="text-xs font-bold text-cyan-700 dark:text-cyan-300">回译 · {{ backTranslationLanguageLabel }}</h3>
               </div>
               <div class="flex items-center gap-1 shrink-0">
                 <button

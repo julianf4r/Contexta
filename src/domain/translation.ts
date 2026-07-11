@@ -76,6 +76,7 @@ export interface ChatMessage {
   timestamp: string;
   evaluation?: string;
   backTranslation?: string;
+  backTranslationLanguageCode?: string;
   backTranslationError?: string;
   isBackTranslating?: boolean;
   isEvaluating?: boolean;

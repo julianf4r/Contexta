@@ -7,6 +7,7 @@ export const useTranslationWorkspaceStore = defineStore('translationWorkspace', 
   const context = ref('');
   const targetText = ref('');
   const backTranslationText = ref('');
+  const backTranslationLanguageCode = ref('');
   const backTranslationError = ref('');
   const isBackTranslating = ref(false);
   const isTranslating = ref(false);
@@ -27,6 +28,7 @@ export const useTranslationWorkspaceStore = defineStore('translationWorkspace', 
 
   const resetBackTranslation = () => {
     backTranslationText.value = '';
+    backTranslationLanguageCode.value = '';
     backTranslationError.value = '';
     isBackTranslating.value = false;
   };
@@ -49,6 +51,7 @@ export const useTranslationWorkspaceStore = defineStore('translationWorkspace', 
     context,
     targetText,
     backTranslationText,
+    backTranslationLanguageCode,
     backTranslationError,
     isBackTranslating,
     isTranslating,

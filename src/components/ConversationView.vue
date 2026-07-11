@@ -13,6 +13,7 @@ import {
   LANGUAGES, 
   SPEAKER_IDENTITY_OPTIONS, 
   TONE_REGISTER_OPTIONS, 
+  type ChatMessage,
   type Participant 
 } from '../domain/translation';
 import { useConversationStore } from '../stores/conversation';
@@ -20,7 +21,7 @@ import { useLogsStore } from '../stores/logs';
 import { cn } from '../lib/utils';
 import { listen } from '@tauri-apps/api/event';
 import { useClipboard } from '../composables/useClipboard';
-import { executeBackTranslation, formatBackTranslationError } from '../lib/back-translation-service';
+import { executeBackTranslation, formatBackTranslationError, resolveBackTranslationTargetLanguage } from '../lib/back-translation-service';
 import {
   buildConversationEvaluationSystemPrompt,
   buildConversationEvaluationUserPrompt,
@@ -184,6 +185,7 @@ const translateMessage = async (sender: 'me' | 'partner', retranslateId?: string
       translated: '',
       evaluation: undefined,
       backTranslation: undefined,
+      backTranslationLanguageCode: undefined,
       backTranslationError: undefined,
       isBackTranslating: false,
     });
@@ -288,8 +290,13 @@ const backTranslateMessage = async (messageId: string) => {
   const msg = activeSession.value.messages.find(m => m.id === messageId);
   if (!msg?.translated || msg.isBackTranslating) return;
 
+  const originalLanguage = msg.sender === 'me' ? activeSession.value.me.language : activeSession.value.partner.language;
+  const translatedLanguage = msg.sender === 'me' ? activeSession.value.partner.language : activeSession.value.me.language;
+  const targetLanguage = resolveBackTranslationTargetLanguage(originalLanguage, settings.backTranslationTargetLanguageCode);
+
   conversationStore.updateChatMessage(sessionId, messageId, {
     backTranslation: undefined,
+    backTranslationLanguageCode: targetLanguage.code,
     backTranslationError: undefined,
   });
 
@@ -300,16 +307,13 @@ const backTranslateMessage = async (messageId: string) => {
     return;
   }
 
-  const originalLanguage = msg.sender === 'me' ? activeSession.value.me.language : activeSession.value.partner.language;
-  const translatedLanguage = msg.sender === 'me' ? activeSession.value.partner.language : activeSession.value.me.language;
-
   conversationStore.updateChatMessage(sessionId, messageId, { isBackTranslating: true });
   try {
     const result = await executeBackTranslation({
       apiKey: settings.backTranslationApiKey,
       text: msg.translated,
       translatedLanguage,
-      originalLanguage,
+      targetLanguage,
     });
     conversationStore.updateChatMessage(sessionId, messageId, { backTranslation: result });
   } catch (error) {
@@ -325,8 +329,13 @@ const clearMessageBackTranslation = (messageId: string) => {
   if (!activeSession.value) return;
   conversationStore.updateChatMessage(activeSession.value.id, messageId, {
     backTranslation: undefined,
+    backTranslationLanguageCode: undefined,
     backTranslationError: undefined,
   });
+};
+
+const getMessageBackTranslationLanguageLabel = (msg: ChatMessage) => {
+  return LANGUAGES.find(language => language.code === msg.backTranslationLanguageCode)?.displayName || '原文语言';
 };
 
 const evaluateMessage = async (messageId: string, force = false) => {
@@ -431,6 +440,7 @@ const refineMessage = async (messageId: string) => {
     isRefining: true,
     translated: '',
     backTranslation: undefined,
+    backTranslationLanguageCode: undefined,
     backTranslationError: undefined,
     isBackTranslating: false,
   });
@@ -669,7 +679,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 <div class="flex items-center justify-between gap-3 mb-1.5">
                   <div :class="cn('flex items-center gap-1.5 text-[10px] font-bold', msg.sender === 'me' ? 'text-blue-100' : 'text-cyan-700 dark:text-cyan-400')">
                     <RefreshCcw class="w-3 h-3" />
-                    回译
+                    回译 · {{ getMessageBackTranslationLanguageLabel(msg) }}
                   </div>
                   <div class="flex items-center gap-0.5">
                     <button
