@@ -102,6 +102,18 @@ const scrollToBottom = async (smooth = true) => {
   }
 };
 
+const isNearMessageBottom = (threshold = 160) => {
+  if (!messageContainer.value) return false;
+  const { scrollHeight, scrollTop, clientHeight } = messageContainer.value;
+  return scrollHeight - scrollTop - clientHeight <= threshold;
+};
+
+const isLatestMessage = (sessionId: string, messageId: string) => {
+  if (activeSession.value?.id !== sessionId) return false;
+  const messages = activeSession.value.messages;
+  return messages[messages.length - 1]?.id === messageId;
+};
+
 const restoreMessageScroll = async () => {
   if (!activeSession.value) return;
   await scrollToBottom(false);
@@ -289,6 +301,7 @@ const backTranslateMessage = async (messageId: string) => {
   const sessionId = activeSession.value.id;
   const msg = activeSession.value.messages.find(m => m.id === messageId);
   if (!msg?.translated || msg.isBackTranslating) return;
+  const followLatestMessage = isLatestMessage(sessionId, messageId) && isNearMessageBottom();
 
   const originalLanguage = msg.sender === 'me' ? activeSession.value.me.language : activeSession.value.partner.language;
   const translatedLanguage = msg.sender === 'me' ? activeSession.value.partner.language : activeSession.value.me.language;
@@ -304,6 +317,7 @@ const backTranslateMessage = async (messageId: string) => {
     conversationStore.updateChatMessage(sessionId, messageId, {
       backTranslationError: '请先在设置的“回译引擎”中配置 API Key。',
     });
+    if (followLatestMessage) await scrollToBottom();
     return;
   }
 
@@ -321,7 +335,11 @@ const backTranslateMessage = async (messageId: string) => {
       backTranslationError: formatBackTranslationError(error),
     });
   } finally {
+    const shouldFollowResult = followLatestMessage
+      && isLatestMessage(sessionId, messageId)
+      && isNearMessageBottom();
     conversationStore.updateChatMessage(sessionId, messageId, { isBackTranslating: false });
+    if (shouldFollowResult) await scrollToBottom();
   }
 };
 
