@@ -656,13 +656,13 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
               )"
             >
               <!-- Original Text -->
-              <p :class="cn('text-[13px] mb-2 leading-snug', msg.sender === 'me' ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400')">
+              <p :class="cn('text-[13px] mb-2 leading-snug whitespace-pre-wrap wrap-break-words', msg.sender === 'me' ? 'text-blue-100' : 'text-slate-500 dark:text-slate-400')">
                 {{ msg.original }}
               </p>
               
               <!-- Translated Text -->
               <div class="relative min-h-6">
-                <p :class="cn('text-base font-medium leading-relaxed', msg.sender === 'me' ? 'text-white' : 'text-slate-800 dark:text-slate-100')">
+                <p :class="cn('text-base font-medium leading-relaxed whitespace-pre-wrap wrap-break-words', msg.sender === 'me' ? 'text-white' : 'text-slate-800 dark:text-slate-100')">
                   {{ msg.translated }}
                   <span v-if="isTranslating && currentStreamingMessageId === msg.id" class="inline-block w-1.5 h-4 bg-current animate-pulse ml-0.5 align-middle"></span>
                 </p>
