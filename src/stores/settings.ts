@@ -3,6 +3,8 @@ import { defineStore } from 'pinia';
 import { useLocalStorage } from '@vueuse/core';
 import { LANGUAGES, SPEAKER_IDENTITY_OPTIONS, TONE_REGISTER_OPTIONS, type ApiProfile, type Language } from '../domain/translation';
 
+export type ThemeMode = 'light' | 'dark' | 'system';
+
 export const DEFAULT_TEMPLATE = `You are a professional {SOURCE_LANG} ({SOURCE_CODE}) to {TARGET_LANG} ({TARGET_CODE}) translator. Your goal is to accurately convey the meaning and nuances of the original {SOURCE_LANG} text while adhering to {TARGET_LANG} grammar, vocabulary, and cultural sensitivities.
 
 [Constraints]
@@ -33,7 +35,7 @@ export const CONVERSATION_SYSTEM_PROMPT_TEMPLATE = `# Role: Professional Real-ti
 5. Output ONLY the translated text, no explanations.`;
 
 export const useSettingsStore = defineStore('settings', () => {
-  const isDark = useLocalStorage('is-dark', false);
+  const themeMode = useLocalStorage<ThemeMode>('theme-mode', 'system');
   const apiBaseUrl = useLocalStorage('api-base-url', 'http://localhost:11434/v1');
   const apiKey = useLocalStorage('api-key', '');
   const modelName = useLocalStorage('model-name', 'translategemma:12b');
@@ -64,7 +66,7 @@ export const useSettingsStore = defineStore('settings', () => {
   });
 
   return {
-    isDark,
+    themeMode,
     apiBaseUrl,
     apiKey,
     modelName,
