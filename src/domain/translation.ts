@@ -74,13 +74,10 @@ export interface ChatMessage {
   original: string;
   translated: string;
   timestamp: string;
-  evaluation?: string;
   backTranslation?: string;
   backTranslationLanguageCode?: string;
   backTranslationError?: string;
   isBackTranslating?: boolean;
-  isEvaluating?: boolean;
-  isRefining?: boolean;
 }
 
 export interface ChatSession {

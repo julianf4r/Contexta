@@ -1,48 +1,18 @@
 import { invoke } from '@tauri-apps/api/core';
-import type { ApiProfile } from '../domain/translation';
-
 interface Message {
   role: string;
   content: string;
-}
-
-interface JsonSchemaResponseFormat {
-  type: 'json_schema';
-  json_schema: {
-    name: string;
-    strict: boolean;
-    schema: Record<string, any>;
-  };
 }
 
 export interface TranslationPayload {
   model: string;
   messages: Message[];
   stream: boolean;
-  response_format?: JsonSchemaResponseFormat;
 }
 
 export interface TranslationChunkEvent {
   request_id: string;
   chunk: string;
-}
-
-export interface EvaluationSuggestion {
-  id: number;
-  text: string;
-  importance: number;
-}
-
-export interface EvaluationResult {
-  score: number;
-  analysis: string;
-  suggestions: EvaluationSuggestion[];
-}
-
-export interface ModelConfig {
-  apiBaseUrl: string;
-  apiKey: string;
-  modelName: string;
 }
 
 type LogType = 'request' | 'response' | 'error';
@@ -58,80 +28,6 @@ interface ExecuteTranslationRequestOptions {
   logger: Logger;
   logType?: string;
   onStreamStart?: (requestId: string) => void;
-}
-
-const FALLBACK_EVALUATION_RESULT: EvaluationResult = {
-  score: 0,
-  analysis: '无法解析审计结果，请查看日志',
-  suggestions: [],
-};
-
-export const EVALUATION_RESPONSE_FORMAT: JsonSchemaResponseFormat = {
-  type: 'json_schema',
-  json_schema: {
-    name: 'translation_evaluation',
-    strict: true,
-    schema: {
-      type: 'object',
-      properties: {
-        score: {
-          type: 'number',
-          description: 'Overall translation quality score from 0 to 100.',
-          minimum: 0,
-          maximum: 100,
-        },
-        analysis: {
-          type: 'string',
-          description: 'Concise audit analysis written in Simplified Chinese.',
-        },
-        suggestions: {
-          type: 'array',
-          description: 'Specific actionable improvement suggestions.',
-          items: {
-            type: 'object',
-            properties: {
-              id: {
-                type: 'integer',
-                description: 'One-based suggestion identifier.',
-                minimum: 1,
-              },
-              text: {
-                type: 'string',
-                description: 'Suggestion text written in Simplified Chinese.',
-              },
-              importance: {
-                type: 'number',
-                description: 'Suggestion importance from 0 to 100.',
-                minimum: 0,
-                maximum: 100,
-              },
-            },
-            required: ['id', 'text', 'importance'],
-            additionalProperties: false,
-          },
-        },
-      },
-      required: ['score', 'analysis', 'suggestions'],
-      additionalProperties: false,
-    },
-  },
-};
-
-export function resolveModelConfig(
-  primary: ModelConfig,
-  profiles: ApiProfile[],
-  profileId: string | null,
-): ModelConfig {
-  if (!profileId) return primary;
-
-  const profile = profiles.find((item) => item.id === profileId);
-  if (!profile) return primary;
-
-  return {
-    apiBaseUrl: profile.apiBaseUrl,
-    apiKey: profile.apiKey,
-    modelName: profile.modelName,
-  };
 }
 
 export function generateCurl(apiBaseUrl: string, apiKey: string, body: TranslationPayload) {
@@ -212,37 +108,4 @@ function createStreamingResponseLog(response: string) {
     rawLength: response.length,
     eventCount,
   };
-}
-
-export function tryParseEvaluationResult(raw?: string) {
-  if (!raw) {
-    return {
-      ok: false as const,
-      error: 'Evaluation result is empty',
-      result: FALLBACK_EVALUATION_RESULT,
-    };
-  }
-
-  try {
-    let cleanStr = raw.trim();
-    if (cleanStr.startsWith('```')) {
-      cleanStr = cleanStr.replace(/^```[a-zA-Z]*\n?/, '').replace(/\n?```$/, '').trim();
-    }
-
-    const parsed = JSON.parse(cleanStr);
-    return {
-      ok: true as const,
-      result: {
-        score: Number(parsed.score) || 0,
-        analysis: typeof parsed.analysis === 'string' ? parsed.analysis : '',
-        suggestions: Array.isArray(parsed.suggestions) ? parsed.suggestions : [],
-      } satisfies EvaluationResult,
-    };
-  } catch (error) {
-    return {
-      ok: false as const,
-      error: `Failed to parse evaluation JSON: ${String(error)}`,
-      result: FALLBACK_EVALUATION_RESULT,
-    };
-  }
 }

@@ -4,7 +4,7 @@ import {
   Plus, Search, Trash2, Send, User, Type, ChevronDown, Check, 
   MessageSquare, Loader2, Copy, 
   X, Sparkles, Languages, Venus, Mars, CircleSlash,
-  ShieldCheck, RotateCcw, RefreshCcw
+  RotateCcw, RefreshCcw
 } from 'lucide-vue-next';
 import { 
   useSettingsStore,
@@ -23,19 +23,13 @@ import { listen } from '@tauri-apps/api/event';
 import { useClipboard } from '../composables/useClipboard';
 import { executeBackTranslation, formatBackTranslationError, resolveBackTranslationTargetLanguage } from '../lib/back-translation-service';
 import {
-  buildConversationEvaluationSystemPrompt,
-  buildConversationEvaluationUserPrompt,
-  buildConversationRefinementUserPrompt,
   buildConversationSystemPrompt,
   buildConversationTranslationUserPrompt,
 } from '../lib/prompt-builders';
 import {
-  EVALUATION_RESPONSE_FORMAT,
   executeTranslationRequest,
   extractAssistantContent,
   extractStreamedAssistantContent,
-  resolveModelConfig,
-  tryParseEvaluationResult,
   type TranslationChunkEvent,
   type TranslationPayload,
 } from '../lib/translation-service';
@@ -62,16 +56,6 @@ const newSessionPartner = ref<Participant>({
   gender: SPEAKER_IDENTITY_OPTIONS[0].value,
   language: LANGUAGES[4], // 西班牙语
   tone: 'Auto-detect'
-});
-
-// Audit Modal States
-const isAuditModalOpen = ref(false);
-const currentAuditMessageId = ref<string | null>(null);
-const selectedSuggestionIds = ref<number[]>([]);
-
-const activeAuditMessage = computed(() => {
-  if (!activeSession.value || !currentAuditMessageId.value) return null;
-  return activeSession.value.messages.find(m => m.id === currentAuditMessageId.value) || null;
 });
 
 // Custom Dropdown States for Modal
@@ -195,7 +179,6 @@ const translateMessage = async (sender: 'me' | 'partner', retranslateId?: string
     messageId = retranslateId;
     conversationStore.updateChatMessage(activeSession.value.id, messageId, {
       translated: '',
-      evaluation: undefined,
       backTranslation: undefined,
       backTranslationLanguageCode: undefined,
       backTranslationError: undefined,
@@ -355,193 +338,6 @@ const clearMessageBackTranslation = (messageId: string) => {
 const getMessageBackTranslationLanguageLabel = (msg: ChatMessage) => {
   return LANGUAGES.find(language => language.code === msg.backTranslationLanguageCode)?.displayName || '原文语言';
 };
-
-const evaluateMessage = async (messageId: string, force = false) => {
-  if (!activeSession.value) return;
-  const msg = activeSession.value.messages.find(m => m.id === messageId);
-  if (!msg) return;
-
-  currentAuditMessageId.value = messageId;
-  selectedSuggestionIds.value = [];
-  
-  await nextTick();
-  isAuditModalOpen.value = true;
-
-  if (!force && (msg.evaluation || msg.isEvaluating)) return;
-
-  conversationStore.updateChatMessage(activeSession.value.id, messageId, { isEvaluating: true, evaluation: undefined });
-
-  const historyLimit = 10;
-  const messageIndex = activeSession.value.messages.findIndex(m => m.id === messageId);
-  const recentMessages = activeSession.value.messages.slice(Math.max(0, messageIndex - historyLimit), messageIndex);
-  // 净化历史：只提供原文流
-  const historyBlock = recentMessages.map(m => {
-    const senderName = m.sender === 'me' ? activeSession.value!.me.name : activeSession.value!.partner.name;
-    return `${senderName}: "${m.original}"`;
-  }).join('\n');
-
-  // 动态确定语言方向
-  const fromLang = msg.sender === 'me' ? activeSession.value.me.language : activeSession.value.partner.language;
-  const toLang = msg.sender === 'me' ? activeSession.value.partner.language : activeSession.value.me.language;
-  const senderName = msg.sender === 'me' ? activeSession.value.me.name : activeSession.value.partner.name;
-
-  // 动态确定目标语气约束
-  const targetTone = msg.sender === 'me' 
-    ? (TONE_REGISTER_OPTIONS.find(o => o.value === activeSession.value!.me.tone)?.value || 'Polite & Conversational')
-    : 'Auto-detect';
-
-  const systemPrompt = buildConversationEvaluationSystemPrompt(settings.chatEvaluationPromptTemplate, {
-    me: activeSession.value.me,
-    partner: activeSession.value.partner,
-    historyBlock,
-    senderName,
-    fromLang,
-    toLang,
-    targetTone,
-  }, 'None');
-
-  const userPrompt = buildConversationEvaluationUserPrompt(msg.original, msg.translated);
-
-  const modelConfig = resolveModelConfig({
-    apiBaseUrl: settings.apiBaseUrl,
-    apiKey: settings.apiKey,
-    modelName: settings.modelName,
-  }, settings.profiles, settings.evaluationProfileId);
-
-  const requestBody: TranslationPayload = {
-    model: modelConfig.modelName,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: userPrompt }
-    ],
-    stream: false,
-    response_format: EVALUATION_RESPONSE_FORMAT
-  };
-
-  try {
-    const response = await executeTranslationRequest({
-      apiAddress: modelConfig.apiBaseUrl,
-      apiKey: modelConfig.apiKey,
-      payload: requestBody,
-      logger: logsStore,
-      logType: 'conversation-eval',
-    });
-    conversationStore.updateChatMessage(activeSession.value.id, messageId, { evaluation: extractAssistantContent(response) });
-  } catch {
-  } finally {
-    conversationStore.updateChatMessage(activeSession.value.id, messageId, { isEvaluating: false });
-  }
-};
-
-const toggleSuggestion = (id: number) => {
-  const index = selectedSuggestionIds.value.indexOf(id);
-  if (index > -1) selectedSuggestionIds.value.splice(index, 1);
-  else selectedSuggestionIds.value.push(id);
-};
-
-const refineMessage = async (messageId: string) => {
-  if (!activeSession.value) return;
-  const msg = activeSession.value.messages.find(m => m.id === messageId);
-  if (!msg || !msg.evaluation || msg.isRefining) return;
-
-  const parsedEvaluation = tryParseEvaluationResult(msg.evaluation);
-  const evalData = parsedEvaluation.result;
-
-  // 仅使用选中的建议
-  const selectedSuggestions = evalData.suggestions.filter((s: any) => selectedSuggestionIds.value.includes(s.id));
-  if (selectedSuggestions.length === 0) return;
-
-  const currentTranslation = msg.translated;
-
-  isAuditModalOpen.value = false; // 关闭弹窗开始润色
-  conversationStore.updateChatMessage(activeSession.value.id, messageId, {
-    isRefining: true,
-    translated: '',
-    backTranslation: undefined,
-    backTranslationLanguageCode: undefined,
-    backTranslationError: undefined,
-    isBackTranslating: false,
-  });
-  currentStreamingMessageId.value = messageId;
-
-  const historyLimit = 10;
-  const recentMessages = activeSession.value.messages.filter(m => m.id !== messageId).slice(-historyLimit);
-  // 净化历史：只提供原文流
-  const historyBlock = recentMessages.map(m => {
-    const senderName = m.sender === 'me' ? activeSession.value!.me.name : activeSession.value!.partner.name;
-    return `${senderName}: "${m.original}"`;
-  }).join('\n');
-
-  // 确定目标语气
-  const targetTone = msg.sender === 'me' 
-    ? TONE_REGISTER_OPTIONS.find(o => o.value === activeSession.value!.me.tone)?.value || 'Polite & Conversational' 
-    : 'Auto-detect';
-  
-  // 动态确定语言方向
-  const fromLang = msg.sender === 'me' ? activeSession.value.me.language : activeSession.value.partner.language;
-  const toLang = msg.sender === 'me' ? activeSession.value.partner.language : activeSession.value.me.language;
-  const senderName = msg.sender === 'me' ? activeSession.value.me.name : activeSession.value.partner.name;
-
-  const systemPrompt = buildConversationSystemPrompt(settings.chatRefinementPromptTemplate, {
-    me: activeSession.value.me,
-    partner: activeSession.value.partner,
-    historyBlock,
-    senderName,
-    fromLang,
-    toLang,
-    targetTone,
-  }, 'None');
-
-  const modelConfig = resolveModelConfig({
-    apiBaseUrl: settings.apiBaseUrl,
-    apiKey: settings.apiKey,
-    modelName: settings.modelName,
-  }, settings.profiles, settings.evaluationProfileId);
-
-  const requestBody: TranslationPayload = {
-    model: modelConfig.modelName,
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: buildConversationRefinementUserPrompt(msg.original, currentTranslation, selectedSuggestions.map((s: any) => s.text)) }
-    ],
-    stream: settings.enableStreaming
-  };
-
-  try {
-    const response = await executeTranslationRequest({
-      apiAddress: modelConfig.apiBaseUrl,
-      apiKey: modelConfig.apiKey,
-      payload: requestBody,
-      logger: logsStore,
-      logType: 'conversation-refine',
-      onStreamStart: (requestId) => {
-        activeStreamRequestId.value = requestId;
-      },
-    });
-
-    if (settings.enableStreaming) {
-      const streamedContent = extractStreamedAssistantContent(response);
-      if (streamedContent) {
-        conversationStore.updateChatMessage(activeSession.value.id, messageId, { translated: streamedContent });
-      }
-    } else {
-      conversationStore.updateChatMessage(activeSession.value.id, messageId, { translated: extractAssistantContent(response) });
-    }
-  } catch {
-  } finally {
-    conversationStore.updateChatMessage(activeSession.value.id, messageId, { isRefining: false, evaluation: undefined });
-    currentStreamingMessageId.value = null;
-    activeStreamRequestId.value = null;
-    
-    // 只有当润色的是最后一条消息时才滚动到底部
-    const lastMsg = activeSession.value.messages[activeSession.value.messages.length - 1];
-    if (lastMsg && lastMsg.id === messageId) {
-      scrollToBottom();
-    }
-  }
-};
-
-const parseEvaluation = (evalStr?: string) => tryParseEvaluationResult(evalStr).result;
 
 const handleGlobalClick = () => {
   myToneDropdownOpen.value = false;
@@ -742,7 +538,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 </button>
                 <button 
                   @click="translateMessage(msg.sender, msg.id)"
-                  :disabled="isTranslating || msg.isEvaluating || msg.isRefining || msg.isBackTranslating"
+                  :disabled="isTranslating || msg.isBackTranslating"
                   class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-30"
                   title="重新翻译"
                 >
@@ -751,21 +547,12 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 </button>
                 <button
                   @click="backTranslateMessage(msg.id)"
-                  :disabled="isTranslating || msg.isEvaluating || msg.isRefining || msg.isBackTranslating || !msg.translated"
+                  :disabled="isTranslating || msg.isBackTranslating || !msg.translated"
                   class="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 rounded-full transition-colors disabled:opacity-30"
                   title="回译"
                 >
                   <Loader2 v-if="msg.isBackTranslating" class="w-3.5 h-3.5 animate-spin text-cyan-500" />
                   <RefreshCcw v-else class="w-3.5 h-3.5 text-slate-400" />
-                </button>
-                <button 
-                  @click="evaluateMessage(msg.id)"
-                  :disabled="msg.isEvaluating || msg.isRefining || msg.isBackTranslating"
-                  class="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-full transition-colors disabled:opacity-30"
-                  title="审计翻译"
-                >
-                  <Loader2 v-if="msg.isEvaluating" class="w-3.5 h-3.5 animate-spin text-blue-500" />
-                  <ShieldCheck v-else class="w-3.5 h-3.5 text-slate-400" />
                 </button>
                 <button 
                   @click="deleteMessage(msg.id)"
@@ -1059,141 +846,6 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
 
     </div>
 
-    <!-- Audit Modal -->
-    <transition
-      enter-active-class="transition duration-300 ease-out"
-      enter-from-class="opacity-0 scale-95"
-      enter-to-class="opacity-100 scale-100"
-      leave-active-class="transition duration-200 ease-in"
-      leave-from-class="opacity-100 scale-100"
-      leave-to-class="opacity-0 scale-95"
-    >
-      <div v-if="isAuditModalOpen && activeAuditMessage" class="fixed inset-0 z-999 flex items-center justify-center p-6 bg-slate-900/60 backdrop-blur-md">
-        <div class="w-full max-w-xl bg-white dark:bg-slate-900 rounded-[2.5rem] shadow-2xl border dark:border-slate-800 flex flex-col max-h-[90vh] overflow-hidden">
-          <!-- Header -->
-          <div class="px-8 py-6 border-b dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-950/50 shrink-0">
-            <div class="flex items-center gap-3">
-              <div class="w-10 h-10 rounded-2xl bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center text-blue-600">
-                <ShieldCheck class="w-6 h-6" />
-              </div>
-              <div>
-                <h3 class="text-lg font-bold dark:text-slate-100">翻译质量审计</h3>
-                <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest">Quality Audit & Refinement</p>
-              </div>
-            </div>
-            <button @click="isAuditModalOpen = false" class="p-2.5 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors">
-              <X class="w-5 h-5 text-slate-400" />
-            </button>
-          </div>
-
-          <!-- Content -->
-          <div class="flex-1 overflow-y-auto p-8 space-y-8 custom-scrollbar">
-            <!-- Score & Analysis -->
-            <section class="space-y-4">
-              <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2">
-                  <div :class="cn(
-                    'w-2 h-2 rounded-full',
-                    activeAuditMessage.isEvaluating ? 'bg-blue-400 animate-pulse' : (parseEvaluation(activeAuditMessage.evaluation)?.score >= 80 ? 'bg-green-500' : 'bg-red-500')
-                  )"></div>
-                  <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest">总体评价</h4>
-                </div>
-                <div v-if="activeAuditMessage.evaluation" :class="cn(
-                  'text-3xl font-black font-mono leading-none',
-                  parseEvaluation(activeAuditMessage.evaluation).score >= 80 ? 'text-green-600' : 'text-red-600'
-                )">
-                  {{ parseEvaluation(activeAuditMessage.evaluation).score }}<span class="text-sm font-normal opacity-30 ml-1">/ 100</span>
-                </div>
-              </div>
-
-              <div v-if="activeAuditMessage.isEvaluating" class="py-10 flex flex-col items-center justify-center space-y-4">
-                <Loader2 class="w-10 h-10 animate-spin text-blue-500" />
-                <p class="text-sm text-slate-400 font-medium animate-pulse">正在深度分析译文...</p>
-              </div>
-
-              <div v-else-if="activeAuditMessage.evaluation" class="bg-slate-50 dark:bg-slate-800/40 p-5 rounded-2xl border border-slate-100 dark:border-slate-800/60">
-                <p class="text-sm text-slate-600 dark:text-slate-300 leading-relaxed italic">
-                  "{{ parseEvaluation(activeAuditMessage.evaluation).analysis }}"
-                </p>
-              </div>
-            </section>
-
-            <!-- Suggestions -->
-            <section v-if="parseEvaluation(activeAuditMessage.evaluation)?.suggestions?.length" class="space-y-4">
-              <div class="flex items-center gap-2">
-                <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-                <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest">修改建议 (点击勾选)</h4>
-              </div>
-              
-              <div class="space-y-3">
-                <div 
-                  v-for="sug in parseEvaluation(activeAuditMessage.evaluation).suggestions" 
-                  :key="sug.id"
-                  @click="toggleSuggestion(sug.id)"
-                  :class="cn(
-                    'flex items-start gap-4 p-4 rounded-2xl border transition-all cursor-pointer group',
-                    selectedSuggestionIds.includes(sug.id) 
-                      ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800 ring-2 ring-blue-500/10' 
-                      : 'bg-white dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                  )"
-                >
-                  <div :class="cn(
-                    'w-5 h-5 rounded-lg border mt-0.5 shrink-0 flex items-center justify-center transition-all',
-                    selectedSuggestionIds.includes(sug.id) ? 'bg-blue-600 border-blue-600 scale-110' : 'border-slate-300 dark:border-slate-600'
-                  )">
-                    <Check v-if="selectedSuggestionIds.includes(sug.id)" class="w-3.5 h-3.5 text-white" stroke-width="4" />
-                  </div>
-                  
-                  <div class="flex-1 space-y-2.5 min-w-0">
-                    <p class="text-[13px] font-medium text-slate-700 dark:text-slate-200 leading-normal">{{ sug.text }}</p>
-                    
-                    <!-- Importance Bar -->
-                    <div class="flex items-center gap-3">
-                      <div class="flex-1 h-1.5 bg-slate-100 dark:bg-slate-700/50 rounded-full overflow-hidden">
-                        <div 
-                          class="h-full rounded-full transition-all duration-1000 ease-out"
-                          :class="sug.importance >= 80 ? 'bg-red-500' : sug.importance >= 40 ? 'bg-amber-500' : 'bg-blue-500'"
-                          :style="{ width: `${sug.importance}%` }"
-                        ></div>
-                      </div>
-                      <span class="text-[10px] font-black opacity-30 font-mono w-8 shrink-0">{{ sug.importance }}%</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-          </div>
-
-          <!-- Footer Action -->
-          <div class="p-8 border-t dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/50 flex items-center gap-4 shrink-0">
-            <button 
-              v-if="activeAuditMessage.evaluation && !activeAuditMessage.isEvaluating"
-              @click="evaluateMessage(activeAuditMessage.id, true)"
-              class="p-4 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-2xl font-bold transition-all shrink-0"
-              title="重新审计"
-            >
-              <RotateCcw class="w-5 h-5" />
-            </button>
-
-            <button 
-              @click="isAuditModalOpen = false"
-              class="flex-1 py-4 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-2xl font-bold transition-all"
-            >
-              取消
-            </button>
-            <button 
-              @click="refineMessage(activeAuditMessage.id)"
-              :disabled="activeAuditMessage.isRefining || activeAuditMessage.isEvaluating || selectedSuggestionIds.length === 0"
-              class="flex-2 py-4 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl font-bold shadow-xl shadow-blue-500/20 transition-all disabled:opacity-50 disabled:shadow-none flex items-center justify-center gap-2"
-            >
-              <Loader2 v-if="activeAuditMessage.isRefining" class="w-5 h-5 animate-spin" />
-              <Sparkles v-else class="w-5 h-5" />
-              {{ activeAuditMessage.isRefining ? '正在润色...' : '应用选中建议并润色' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </transition>
   </div>
 </template>
 

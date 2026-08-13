@@ -26,13 +26,6 @@ export const useHistoryStore = defineStore('history', () => {
     return id;
   };
 
-  const updateHistoryItem = (id: string, updates: Partial<HistoryItem>) => {
-    const index = history.value.findIndex((item) => item.id === id);
-    if (index !== -1) {
-      history.value[index] = { ...history.value[index], ...updates };
-    }
-  };
-
   const deleteHistoryItem = (id: string) => {
     history.value = history.value.filter((item) => item.id !== id);
   };
@@ -44,7 +37,6 @@ export const useHistoryStore = defineStore('history', () => {
   return {
     history,
     addHistory,
-    updateHistoryItem,
     deleteHistoryItem,
     clearHistory,
   };

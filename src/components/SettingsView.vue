@@ -4,11 +4,7 @@ import { Play, Settings, Type, Save, Check, Plus, Trash2, ChevronDown, Eye, EyeO
 import { 
   useSettingsStore, 
   DEFAULT_TEMPLATE, 
-  DEFAULT_EVALUATION_TEMPLATE, 
-  DEFAULT_REFINEMENT_TEMPLATE, 
-  CONVERSATION_SYSTEM_PROMPT_TEMPLATE,
-  CONVERSATION_EVALUATION_PROMPT_TEMPLATE,
-  CONVERSATION_REFINEMENT_PROMPT_TEMPLATE
+  CONVERSATION_SYSTEM_PROMPT_TEMPLATE
 } from '../stores/settings';
 import { LANGUAGES, type ApiProfile } from '../domain/translation';
 import { cn } from '../lib/utils';
@@ -73,24 +69,12 @@ const saveEditProfile = () => {
   editProfileForm.value = null;
 };
 
-const evaluationProfileDropdownOpen = ref(false);
 const backTranslationLanguageDropdownOpen = ref(false);
 const toggleDropdown = (type: string) => {
-  if (type === 'evaluationProfile') {
-    backTranslationLanguageDropdownOpen.value = false;
-    evaluationProfileDropdownOpen.value = !evaluationProfileDropdownOpen.value;
-  }
   if (type === 'backTranslationLanguage') {
-    evaluationProfileDropdownOpen.value = false;
     backTranslationLanguageDropdownOpen.value = !backTranslationLanguageDropdownOpen.value;
   }
 };
-
-const currentEvaluationProfileLabel = computed(() => {
-  if (!settings.evaluationProfileId) return '使用主翻译配置（默认）';
-  const profile = settings.profiles.find(p => p.id === settings.evaluationProfileId);
-  return profile ? `${profile.name} — ${profile.modelName}` : '使用主翻译配置（默认）';
-});
 
 const currentBackTranslationLanguageLabel = computed(() => {
   if (settings.backTranslationTargetLanguageCode === 'source') return '原文语言（默认）';
@@ -100,7 +84,6 @@ const currentBackTranslationLanguageLabel = computed(() => {
 const handleGlobalClick = (e: MouseEvent) => {
   const target = e.target as HTMLElement;
   if (!target.closest('.lang-dropdown')) {
-    evaluationProfileDropdownOpen.value = false;
     backTranslationLanguageDropdownOpen.value = false;
   }
 };
@@ -445,7 +428,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
             <template v-if="settingsCategory === 'general'">
               <div class="mb-6 border-b dark:border-slate-800 pb-4">
                 <h1 class="text-2xl font-bold text-slate-800 dark:text-slate-100">常规设置</h1>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">调整软件的翻译行为和质量审计规则。</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">调整软件的翻译行为。</p>
               </div>
 
               <div class="bg-white/80 dark:bg-slate-900 rounded-2xl shadow-sm border dark:border-slate-800 p-6 space-y-6">
@@ -467,92 +450,6 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                       settings.enableStreaming ? 'translate-x-6' : 'translate-x-0'
                     )"></div>
                   </button>
-                </div>
-
-                <div class="h-px bg-slate-100 dark:bg-slate-800"></div>
-
-                <!-- Auto Evaluation -->
-                <div class="flex items-center justify-between">
-                  <div class="space-y-0.5">
-                    <label class="text-sm font-semibold text-slate-800 dark:text-slate-200">自动质量审计</label>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">翻译完成后，自动启动一个次级请求来评估翻译的准确度和语气，并提供改进建议。</p>
-                  </div>
-                  <button 
-                    @click="settings.enableEvaluation = !settings.enableEvaluation"
-                    :class="cn(
-                      'w-12 h-6 rounded-full transition-colors relative focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 shrink-0',
-                      settings.enableEvaluation ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
-                    )"
-                  >
-                    <div :class="cn(
-                      'absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform shadow-sm',
-                      settings.enableEvaluation ? 'translate-x-6' : 'translate-x-0'
-                    )"></div>
-                  </button>
-                </div>
-
-                <div class="h-px bg-slate-100 dark:bg-slate-800"></div>
-
-                <!-- Audit Profile Selector -->
-                <div class="space-y-3">
-                  <div class="space-y-0.5">
-                    <label class="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-                      审计模型
-                    </label>
-                    <p class="text-xs text-slate-500 dark:text-slate-400">强烈建议选择更强大的模型以获得精准反馈。</p>
-                  </div>
-                    
-                    <!-- Custom Evaluation Profile Dropdown -->
-                    <div class="relative lang-dropdown w-full max-w-md">
-                      <button 
-                        @click.stop="toggleDropdown('evaluationProfile')"
-                        class="flex items-center justify-between w-full px-4 py-2 border dark:border-slate-700 rounded-xl bg-slate-50 dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-800 transition-all text-sm text-slate-700 dark:text-slate-200 group shadow-sm"
-                      >
-                        <span class="truncate font-medium">{{ currentEvaluationProfileLabel }}</span>
-                        <ChevronDown :class="cn('w-4 h-4 text-slate-400 transition-transform duration-200 group-hover:text-blue-500', evaluationProfileDropdownOpen && 'rotate-180')" />
-                      </button>
-                      
-                      <transition
-                        enter-active-class="transition duration-100 ease-out"
-                        enter-from-class="transform scale-95 opacity-0"
-                        enter-to-class="transform scale-100 opacity-100"
-                        leave-active-class="transition duration-75 ease-in"
-                        leave-from-class="transform scale-100 opacity-100"
-                        leave-to-class="transform scale-95 opacity-0"
-                      >
-                        <div 
-                          v-if="evaluationProfileDropdownOpen"
-                          class="absolute left-0 mt-2 w-full max-h-60 overflow-y-auto bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 z-50 py-2 flex flex-col custom-scrollbar"
-                        >
-                          <button
-                            @click="settings.evaluationProfileId = null; evaluationProfileDropdownOpen = false"
-                            :class="cn(
-                              'px-4 py-3 text-sm text-left transition-colors flex items-center justify-between',
-                              settings.evaluationProfileId === null ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-bold' : 'text-slate-600 hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-700/50'
-                            )"
-                          >
-                            <span class="font-semibold">使用当前主翻译配置（不推荐）</span>
-                            <Check v-if="settings.evaluationProfileId === null" class="w-4 h-4" />
-                          </button>
-                          <div class="h-px bg-slate-100 dark:bg-slate-700 my-1 mx-2"></div>
-                          <button
-                            v-for="profile in settings.profiles"
-                            :key="profile.id"
-                            @click="settings.evaluationProfileId = profile.id; evaluationProfileDropdownOpen = false"
-                            :class="cn(
-                              'px-4 py-3 text-sm text-left transition-colors flex items-center justify-between',
-                              settings.evaluationProfileId === profile.id ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400 font-bold' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700/50'
-                            )"
-                          >
-                            <div class="flex flex-col gap-0.5 min-w-0">
-                              <span class="truncate font-semibold">{{ profile.name }}</span>
-                              <span class="text-[10px] opacity-60 font-mono">{{ profile.modelName }}</span>
-                            </div>
-                            <Check v-if="settings.evaluationProfileId === profile.id" class="w-4 h-4 shrink-0" />
-                          </button>
-                        </div>
-                      </transition>
-                    </div>
                 </div>
 
               </div>
@@ -588,49 +485,6 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                   </div>
                 </div>
 
-                <!-- Evaluation Prompt -->
-                <div class="bg-white/80 dark:bg-slate-900 rounded-2xl shadow-sm border dark:border-slate-800 overflow-hidden flex flex-col">
-                  <div class="px-5 py-3 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full bg-amber-500"></div>
-                      <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">质量审计指令</h3>
-                    </div>
-                    <button @click="settings.evaluationPromptTemplate = DEFAULT_EVALUATION_TEMPLATE" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">恢复默认</button>
-                  </div>
-                  <textarea 
-                    v-model="settings.evaluationPromptTemplate"
-                    rows="12"
-                    class="w-full p-5 bg-transparent outline-none font-mono text-xs leading-relaxed text-slate-800 dark:text-slate-300 resize-y"
-                    spellcheck="false"
-                  ></textarea>
-                  <div class="px-5 py-3 bg-slate-50 dark:bg-slate-950 border-t dark:border-slate-800">
-                    <div class="flex flex-wrap gap-1.5">
-                      <span v-for="tag in ['{SOURCE_LANG}', '{TARGET_LANG}', '{SPEAKER_IDENTITY}', '{TONE_REGISTER}', '{CONTEXT}']" :key="tag" class="px-2 py-0.5 bg-white dark:bg-slate-800 text-[10px] font-mono rounded-md border dark:border-slate-700 text-slate-500 shadow-sm">{{ tag }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Refinement Prompt -->
-                <div class="bg-white/80 dark:bg-slate-900 rounded-2xl shadow-sm border dark:border-slate-800 overflow-hidden flex flex-col">
-                  <div class="px-5 py-3 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                      <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">定向润色指令</h3>
-                    </div>
-                    <button @click="settings.refinementPromptTemplate = DEFAULT_REFINEMENT_TEMPLATE" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">恢复默认</button>
-                  </div>
-                  <textarea 
-                    v-model="settings.refinementPromptTemplate"
-                    rows="8"
-                    class="w-full p-5 bg-transparent outline-none font-mono text-xs leading-relaxed text-slate-800 dark:text-slate-300 resize-y"
-                    spellcheck="false"
-                  ></textarea>
-                  <div class="px-5 py-3 bg-slate-50 dark:bg-slate-950 border-t dark:border-slate-800">
-                    <div class="flex flex-wrap gap-1.5">
-                      <span v-for="tag in ['{SOURCE_LANG}', '{TARGET_LANG}', '{SPEAKER_IDENTITY}', '{TONE_REGISTER}', '{CONTEXT}']" :key="tag" class="px-2 py-0.5 bg-white dark:bg-slate-800 text-[10px] font-mono rounded-md border dark:border-slate-700 text-slate-500 shadow-sm">{{ tag }}</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </template>
 
@@ -664,49 +518,6 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                   </div>
                 </div>
 
-                <!-- Chat Evaluation Prompt -->
-                <div class="bg-white/80 dark:bg-slate-900 rounded-2xl shadow-sm border dark:border-slate-800 overflow-hidden flex flex-col">
-                  <div class="px-5 py-3 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full bg-amber-500"></div>
-                      <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">对话审计指令</h3>
-                    </div>
-                    <button @click="settings.chatEvaluationPromptTemplate = CONVERSATION_EVALUATION_PROMPT_TEMPLATE" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">恢复默认</button>
-                  </div>
-                  <textarea 
-                    v-model="settings.chatEvaluationPromptTemplate"
-                    rows="12"
-                    class="w-full p-5 bg-transparent outline-none font-mono text-xs leading-relaxed text-slate-800 dark:text-slate-300 resize-y"
-                    spellcheck="false"
-                  ></textarea>
-                  <div class="px-5 py-3 bg-slate-50 dark:bg-slate-950 border-t dark:border-slate-800">
-                    <div class="flex flex-wrap gap-1.5">
-                      <span v-for="tag in ['{ME_NAME}', '{ME_GENDER}', '{ME_LANG}', '{PART_NAME}', '{PART_GENDER}', '{PART_LANG}', '{HISTORY_BLOCK}', '{SENDER_NAME}', '{FROM_LANG}', '{TO_LANG}', '{TARGET_TONE}']" :key="tag" class="px-2 py-0.5 bg-white dark:bg-slate-800 text-[10px] font-mono rounded-md border dark:border-slate-700 text-slate-500 shadow-sm">{{ tag }}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Chat Refinement Prompt -->
-                <div class="bg-white/80 dark:bg-slate-900 rounded-2xl shadow-sm border dark:border-slate-800 overflow-hidden flex flex-col">
-                  <div class="px-5 py-3 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
-                    <div class="flex items-center gap-2">
-                      <div class="w-2 h-2 rounded-full bg-green-500"></div>
-                      <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">对话润色指令</h3>
-                    </div>
-                    <button @click="settings.chatRefinementPromptTemplate = CONVERSATION_REFINEMENT_PROMPT_TEMPLATE" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">恢复默认</button>
-                  </div>
-                  <textarea 
-                    v-model="settings.chatRefinementPromptTemplate"
-                    rows="10"
-                    class="w-full p-5 bg-transparent outline-none font-mono text-xs leading-relaxed text-slate-800 dark:text-slate-300 resize-y"
-                    spellcheck="false"
-                  ></textarea>
-                  <div class="px-5 py-3 bg-slate-50 dark:bg-slate-950 border-t dark:border-slate-800">
-                    <div class="flex flex-wrap gap-1.5">
-                      <span v-for="tag in ['{ME_NAME}', '{ME_GENDER}', '{ME_LANG}', '{PART_NAME}', '{PART_GENDER}', '{PART_LANG}', '{HISTORY_BLOCK}', '{SENDER_NAME}', '{FROM_LANG}', '{TO_LANG}', '{TARGET_TONE}']" :key="tag" class="px-2 py-0.5 bg-white dark:bg-slate-800 text-[10px] font-mono rounded-md border dark:border-slate-700 text-slate-500 shadow-sm">{{ tag }}</span>
-                    </div>
-                  </div>
-                </div>
               </div>
             </template>
 

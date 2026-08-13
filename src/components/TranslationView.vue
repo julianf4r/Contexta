@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
-import { ChevronDown, Check, ArrowRightLeft, Trash2, FileText, Plus, Loader2, Send, User, Type, Copy, Save, RefreshCcw, X } from 'lucide-vue-next';
+import { ChevronDown, Check, ArrowRightLeft, Trash2, FileText, Plus, Loader2, Send, User, Type, Copy, RefreshCcw, X } from 'lucide-vue-next';
 import { listen } from '@tauri-apps/api/event';
 import { LANGUAGES, SPEAKER_IDENTITY_OPTIONS, TONE_REGISTER_OPTIONS } from '../domain/translation';
 import { useSettingsStore } from '../stores/settings';
@@ -12,20 +12,13 @@ import { cn } from '../lib/utils';
 import { useClipboard } from '../composables/useClipboard';
 import { executeBackTranslation, formatBackTranslationError, resolveBackTranslationTargetLanguage } from '../lib/back-translation-service';
 import {
-  buildSingleEvaluationSystemPrompt,
-  buildSingleEvaluationUserPrompt,
-  buildSingleRefinementSystemPrompt,
-  buildSingleRefinementUserPrompt,
   buildSingleTranslationSystemPrompt,
   buildSingleTranslationUserPrompt,
 } from '../lib/prompt-builders';
 import {
-  EVALUATION_RESPONSE_FORMAT,
   executeTranslationRequest,
   extractAssistantContent,
   extractStreamedAssistantContent,
-  resolveModelConfig,
-  tryParseEvaluationResult,
   type TranslationChunkEvent,
   type TranslationPayload,
 } from '../lib/translation-service';
@@ -44,12 +37,6 @@ const {
   backTranslationError,
   isBackTranslating,
   isTranslating,
-  currentHistoryId,
-  evaluationResult,
-  isEvaluating,
-  isRefining,
-  selectedSuggestionIds,
-  appliedSuggestionIds,
   activeStreamRequestId,
 } = storeToRefs(workspaceStore);
 
@@ -97,7 +84,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
 let unlisten: (() => void) | null = null;
 onMounted(async () => {
   unlisten = await listen<TranslationChunkEvent>('translation-chunk', (event) => {
-    if ((isTranslating.value || isRefining.value) && event.payload.request_id === activeStreamRequestId.value) {
+    if (isTranslating.value && event.payload.request_id === activeStreamRequestId.value) {
       targetText.value += event.payload.chunk;
     }
   });
@@ -139,10 +126,6 @@ const clearSource = () => {
   workspaceStore.clearWorkspace();
 };
 
-const toggleSuggestion = (id: number) => {
-  workspaceStore.toggleSuggestion(id);
-};
-
 const backTranslate = async () => {
   if (!targetText.value.trim() || isBackTranslating.value) return;
 
@@ -175,130 +158,12 @@ const backTranslate = async () => {
   }
 };
 
-const evaluateTranslation = async () => {
-  if (!targetText.value) return;
-  isEvaluating.value = true;
-  workspaceStore.resetEvaluationState();
-
-  const modelConfig = resolveModelConfig({
-    apiBaseUrl: settings.apiBaseUrl,
-    apiKey: settings.apiKey,
-    modelName: settings.modelName,
-  }, settings.profiles, settings.evaluationProfileId);
-
-  const evaluationSystemPrompt = buildSingleEvaluationSystemPrompt(settings.evaluationPromptTemplate, {
-    sourceLang: sourceLang.value,
-    targetLang: targetLang.value,
-    speakerIdentity: settings.speakerIdentity,
-    toneRegister: settings.toneRegister,
-    context: context.value,
-  });
-
-  const evaluationUserPrompt = buildSingleEvaluationUserPrompt(sourceText.value, targetText.value);
-
-  const requestBody: TranslationPayload = {
-    model: modelConfig.modelName,
-    messages: [ { role: "system", content: evaluationSystemPrompt }, { role: "user", content: evaluationUserPrompt } ],
-    stream: false,
-    response_format: EVALUATION_RESPONSE_FORMAT
-  };
-
-  try {
-    const response = await executeTranslationRequest({
-      apiAddress: modelConfig.apiBaseUrl,
-      apiKey: modelConfig.apiKey,
-      payload: requestBody,
-      logger: logsStore,
-      logType: 'evaluation',
-    });
-    const parsedEvaluation = tryParseEvaluationResult(extractAssistantContent(response));
-    if (!parsedEvaluation.ok) {
-      console.error(parsedEvaluation.error, response);
-      logsStore.addLog('error', `Evaluation parsing error: ${response}`);
-    }
-    evaluationResult.value = parsedEvaluation.result;
-  } catch {
-  } finally {
-    isEvaluating.value = false;
-  }
-};
-
-const refineTranslation = async () => {
-  if (!targetText.value || isRefining.value) return;
-  const selectedTexts = evaluationResult.value?.suggestions?.filter(s => selectedSuggestionIds.value?.includes(s.id)).map(s => s.text);
-  if (!selectedTexts || selectedTexts.length === 0) return;
-
-  isRefining.value = true;
-  clearBackTranslation();
-  const originalTranslation = targetText.value;
-  targetText.value = ''; 
-
-  const modelConfig = resolveModelConfig({
-    apiBaseUrl: settings.apiBaseUrl,
-    apiKey: settings.apiKey,
-    modelName: settings.modelName,
-  }, settings.profiles, settings.evaluationProfileId);
-
-  const refinementSystemPrompt = buildSingleRefinementSystemPrompt(settings.refinementPromptTemplate, {
-    sourceLang: sourceLang.value,
-    targetLang: targetLang.value,
-    speakerIdentity: settings.speakerIdentity,
-    toneRegister: settings.toneRegister,
-    context: context.value,
-  });
-
-  const refinementUserPrompt = buildSingleRefinementUserPrompt(sourceText.value, originalTranslation, selectedTexts);
-
-  const requestBody: TranslationPayload = {
-    model: modelConfig.modelName,
-    messages: [ { role: "system", content: refinementSystemPrompt }, { role: "user", content: refinementUserPrompt } ],
-    stream: settings.enableStreaming
-  };
-
-  try {
-    const response = await executeTranslationRequest({
-      apiAddress: modelConfig.apiBaseUrl,
-      apiKey: modelConfig.apiKey,
-      payload: requestBody,
-      logger: logsStore,
-      logType: 'refinement',
-      onStreamStart: (requestId) => {
-        activeStreamRequestId.value = requestId;
-      },
-    });
-    
-    if (settings.enableStreaming) {
-      targetText.value = extractStreamedAssistantContent(response) || targetText.value;
-    } else {
-      targetText.value = extractAssistantContent(response);
-    }
-    
-    if (evaluationResult.value?.suggestions) {
-      appliedSuggestionIds.value.push(...selectedSuggestionIds.value);
-      selectedSuggestionIds.value = [];
-    }
-    
-    if (currentHistoryId.value) {
-      historyStore.updateHistoryItem(currentHistoryId.value, {
-        targetText: targetText.value
-      });
-    }
-  } catch (err: any) {
-    targetText.value = `Error: ${String(err)}`;
-  } finally {
-    isRefining.value = false;
-    activeStreamRequestId.value = null;
-  }
-};
-
 const translate = async () => {
   if (!sourceText.value.trim() || isTranslating.value) return;
 
   isTranslating.value = true;
   clearBackTranslation();
-  currentHistoryId.value = null;
   targetText.value = '';
-  evaluationResult.value = null;
 
   const systemMessage = buildSingleTranslationSystemPrompt(settings.systemPromptTemplate, {
     sourceLang: sourceLang.value,
@@ -335,7 +200,7 @@ const translate = async () => {
       targetText.value = finalTargetText;
     }
 
-    currentHistoryId.value = historyStore.addHistory({
+    historyStore.addHistory({
       sourceLang: { ...sourceLang.value },
       targetLang: { ...targetLang.value },
       sourceText: sourceText.value,
@@ -351,8 +216,6 @@ const translate = async () => {
     isTranslating.value = false;
     activeStreamRequestId.value = null;
   }
-
-  if (settings.enableEvaluation) await evaluateTranslation();
 };
 </script>
 <template>
@@ -440,7 +303,7 @@ const translate = async () => {
           
                     <div class="p-4 border-t dark:border-slate-800 bg-slate-50/30 dark:bg-transparent flex justify-end shrink-0">            <button 
               @click="translate"
-              :disabled="isTranslating || isEvaluating || isRefining || isBackTranslating || !sourceText.trim()"
+              :disabled="isTranslating || isBackTranslating || !sourceText.trim()"
               class="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900/40 text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 shadow-sm"
             >
               <Loader2 v-if="isTranslating" class="w-4 h-4 animate-spin" />
@@ -581,7 +444,7 @@ const translate = async () => {
             <div class="ml-auto flex items-center gap-2">
               <button
                 @click="backTranslate"
-                :disabled="isBackTranslating || isTranslating || isEvaluating || isRefining || !targetText.trim()"
+                :disabled="isBackTranslating || isTranslating || !targetText.trim()"
                 class="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors disabled:opacity-30"
                 title="回译"
               >
@@ -639,118 +502,6 @@ const translate = async () => {
             <p v-else class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto custom-scrollbar">{{ backTranslationText }}</p>
           </div>
 
-          <!-- Evaluation Results -->
-          <div v-if="isEvaluating || evaluationResult" class="px-6 py-4 bg-slate-200/20 dark:bg-slate-800/20 border-t border-dashed dark:border-slate-800 space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-500 overflow-y-auto max-h-80 shrink-0">
-            <div class="flex items-center justify-between">
-              <div class="flex items-center gap-2">
-                <div :class="cn(
-                  'w-2 h-2 rounded-full',
-                  isEvaluating ? 'bg-blue-400 animate-pulse' : (evaluationResult?.score && evaluationResult.score >= 80 ? 'bg-green-500' : evaluationResult?.score && evaluationResult.score >= 60 ? 'bg-amber-500' : 'bg-red-500')
-                )"></div>
-                <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">质量审计</h3>
-              </div>
-              <div v-if="evaluationResult" :class="cn(
-                'text-lg font-black font-mono',
-                evaluationResult.score >= 80 ? 'text-green-600' : evaluationResult.score >= 60 ? 'text-amber-600' : 'text-red-600'
-              )">
-                {{ evaluationResult.score }} <span class="text-[10px] font-normal opacity-50">/ 100</span>
-              </div>
-              <div v-else-if="isEvaluating" class="flex items-center gap-1.5 text-xs text-blue-500 font-medium">
-                <Loader2 class="w-3 h-3 animate-spin" />
-                正在审计...
-              </div>
-            </div>
-
-            <div v-if="evaluationResult" class="space-y-3">
-              <div class="bg-slate-50 dark:bg-slate-800/40 p-3 rounded-lg border border-slate-100 dark:border-slate-800/60">
-                <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
-                  {{ evaluationResult.analysis }}
-                </p>
-              </div>
-              
-              <div v-if="evaluationResult.suggestions && evaluationResult.suggestions.length > 0" class="space-y-4 pt-2">
-                <!-- Pending Suggestions -->
-                <div v-if="evaluationResult.suggestions.some(s => !appliedSuggestionIds.includes(s.id))" class="space-y-2">
-                  <div class="flex items-center gap-2">
-                    <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">修改建议</h3>
-                  </div>
-                  <div class="space-y-2">
-                    <div 
-                      v-for="sug in evaluationResult.suggestions.filter(s => !appliedSuggestionIds.includes(s.id))" 
-                      :key="sug.id"
-                      @click="toggleSuggestion(sug.id)"
-                      :class="cn(
-                        'flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer group',
-                        selectedSuggestionIds?.includes(sug.id) 
-                          ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-800' 
-                          : 'bg-white dark:bg-slate-800/40 border-slate-100 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
-                      )"
-                    >
-                      <div :class="cn(
-                        'w-4 h-4 rounded border mt-0.5 shrink-0 flex items-center justify-center transition-colors',
-                        selectedSuggestionIds?.includes(sug.id) ? 'bg-blue-600 border-blue-600' : 'border-slate-300 dark:border-slate-600'
-                      )">
-                        <Check v-if="selectedSuggestionIds?.includes(sug.id)" class="w-3.5 h-3.5 text-white" stroke-width="4" />
-                      </div>
-                      <div class="flex-1 space-y-1.5 min-w-0">
-                        <p class="text-xs text-slate-700 dark:text-slate-200 leading-normal">{{ sug.text }}</p>
-                        <div class="flex items-center gap-2">
-                          <div class="flex-1 h-1 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
-                            <div 
-                              class="h-full rounded-full transition-all duration-1000"
-                              :class="sug.importance >= 80 ? 'bg-red-500' : sug.importance >= 40 ? 'bg-amber-500' : 'bg-blue-500'"
-                              :style="{ width: `${sug.importance}%` }"
-                            ></div>
-                          </div>
-                          <span class="text-[9px] font-bold opacity-40 uppercase tracking-tighter w-8 shrink-0">{{ sug.importance }}%</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Applied Suggestions -->
-                <div v-if="appliedSuggestionIds.length > 0" class="space-y-2 border-t dark:border-slate-800 pt-4">
-                  <div class="flex items-center gap-2">
-                    <div class="w-2 h-2 rounded-full bg-slate-400"></div>
-                    <h3 class="text-xs font-bold text-slate-400 uppercase tracking-widest">已润色</h3>
-                  </div>
-                  <div class="space-y-2">
-                    <div 
-                      v-for="sug in evaluationResult.suggestions.filter(s => appliedSuggestionIds.includes(s.id))" 
-                      :key="'applied-' + sug.id"
-                      class="p-3 rounded-xl border border-slate-100 dark:border-slate-800/60 bg-white/30 dark:bg-slate-800/20 opacity-70"
-                    >
-                      <p class="text-xs text-slate-500 dark:text-slate-400 leading-normal">{{ sug.text }}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div class="p-4 border-t dark:border-slate-800 bg-slate-50/30 dark:bg-transparent flex justify-end gap-2 shrink-0">
-            <button 
-              @click="refineTranslation"
-              v-if="evaluationResult && evaluationResult.suggestions && evaluationResult.suggestions.length > 0"
-              :disabled="isRefining || isEvaluating || isTranslating || isBackTranslating || selectedSuggestionIds.length === 0"
-              class="bg-blue-600 enabled:hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900/40 text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 shadow-sm"
-            >
-              <Loader2 v-if="isRefining" class="w-4 h-4 animate-spin" />
-              <Save v-else class="w-4 h-4" />
-              {{ isRefining ? '正在润色...' : '润色' }}
-            </button>
-            <button 
-              @click="evaluateTranslation"
-              :disabled="isEvaluating || isTranslating || isRefining || isBackTranslating || !targetText.trim()"
-              class="bg-blue-600 enabled:hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900/40 text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 shadow-sm"
-            >
-              <Loader2 v-if="isEvaluating" class="w-4 h-4 animate-spin" />
-              <Check v-else class="w-4 h-4" />
-              {{ isEvaluating ? '正在审计...' : '审计' }}
-            </button>
-          </div>
         </div>
       </div>
 </template>
