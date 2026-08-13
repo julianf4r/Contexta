@@ -417,15 +417,6 @@ const translate = async () => {
             </div>
 
             <div class="ml-auto flex items-center gap-2">
-              <button
-                @click="backTranslate"
-                :disabled="isBackTranslating || isTranslating || !targetText.trim()"
-                class="p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded-md transition-colors disabled:opacity-30"
-                title="回译"
-              >
-                <Loader2 v-if="isBackTranslating" class="w-4 h-4 animate-spin text-blue-500" />
-                <RefreshCcw v-else class="w-4 h-4 text-slate-500 dark:text-slate-400" />
-              </button>
               <button @click="copyWithFeedback(targetText, 'main-target')" class="p-1.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-md transition-colors relative" title="复制结果">
                 <Check v-if="activeCopyId === 'main-target'" class="w-4 h-4 text-green-600" />
                 <Copy v-else class="w-4 h-4 text-slate-500 dark:text-slate-400" />
@@ -475,6 +466,18 @@ const translate = async () => {
             </div>
             <p v-else-if="backTranslationError" class="text-sm text-red-600 dark:text-red-400 leading-relaxed">{{ backTranslationError }}</p>
             <p v-else class="text-sm text-slate-700 dark:text-slate-200 leading-relaxed whitespace-pre-wrap max-h-32 overflow-y-auto custom-scrollbar">{{ backTranslationText }}</p>
+          </div>
+
+          <div class="p-4 border-t dark:border-slate-800 bg-slate-50/30 dark:bg-transparent flex justify-end shrink-0">
+            <button
+              @click="backTranslate"
+              :disabled="isBackTranslating || isTranslating || !targetText.trim()"
+              class="bg-blue-600 hover:bg-blue-700 disabled:bg-blue-300 dark:disabled:bg-blue-900/40 text-white px-6 py-2.5 rounded-lg font-medium transition-all flex items-center gap-2 shadow-sm"
+            >
+              <Loader2 v-if="isBackTranslating" class="w-4 h-4 animate-spin" />
+              <RefreshCcw v-else class="w-4 h-4" />
+              {{ isBackTranslating ? '正在回译...' : '回译' }}
+            </button>
           </div>
 
         </div>
