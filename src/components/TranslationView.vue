@@ -143,6 +143,7 @@ const backTranslate = async () => {
       text: targetText.value,
       translatedLanguage: targetLang.value,
       targetLanguage,
+      logger: logsStore,
     });
     if (requestId === backTranslationRequestId) {
       backTranslationText.value = result;

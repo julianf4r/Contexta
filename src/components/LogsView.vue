@@ -33,6 +33,9 @@ const decodeUnicode = (str: string) => {
 const getLogSummary = (log: any) => {
   if (log.type === 'error') return String(log.content);
   if (typeof log.content === 'string') return decodeUnicode(log.content);
+  if (log.content?.operation === 'back-translation') {
+    return log.content.translatedText || `回译: ${log.content.source} → ${log.content.target}`;
+  }
   if (log.content && log.content.model) return `Model: ${log.content.model}`;
   if (log.content && log.content.score) return `Score: ${log.content.score}`;
   return 'JSON Data';

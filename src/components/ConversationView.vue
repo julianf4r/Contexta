@@ -311,6 +311,7 @@ const backTranslateMessage = async (messageId: string) => {
       text: msg.translated,
       translatedLanguage,
       targetLanguage,
+      logger: logsStore,
     });
     conversationStore.updateChatMessage(sessionId, messageId, { backTranslation: result });
   } catch (error) {

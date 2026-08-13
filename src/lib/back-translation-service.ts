@@ -6,7 +6,12 @@ interface BackTranslationOptions {
   text: string;
   translatedLanguage: Language;
   targetLanguage: Language;
+  logger: {
+    addLog: (type: 'request' | 'response' | 'error', content: any, curl?: string) => void;
+  };
 }
+
+const GOOGLE_TRANSLATE_API_URL = 'https://translation.googleapis.com/language/translate/v2';
 
 function toGoogleLanguageCode(language: Language) {
   switch (language.code) {
@@ -27,16 +32,47 @@ export async function executeBackTranslation({
   text,
   translatedLanguage,
   targetLanguage,
+  logger,
 }: BackTranslationOptions) {
-  const translatedText = await invoke<string>('back_translate', {
-    apiKey,
-    text,
-    sourceLanguage: toGoogleLanguageCode(translatedLanguage),
-    targetLanguage: toGoogleLanguageCode(targetLanguage),
-  });
+  const sourceLanguage = toGoogleLanguageCode(translatedLanguage);
+  const targetLanguageCode = toGoogleLanguageCode(targetLanguage);
+  const payload = {
+    q: text,
+    source: sourceLanguage,
+    target: targetLanguageCode,
+    format: 'text',
+  };
+  const maskedKey = apiKey ? `${apiKey.slice(0, 6)}...${apiKey.slice(-4)}` : 'YOUR_API_KEY';
+  const curl = `curl "${GOOGLE_TRANSLATE_API_URL}" \\
+  -H "Content-Type: application/json" \\
+  -H "X-goog-api-key: ${maskedKey}" \\
+  -d '${JSON.stringify(payload, null, 2)}'`;
 
-  const parsed = new DOMParser().parseFromString(translatedText, 'text/html');
-  return parsed.documentElement.textContent || translatedText;
+  logger.addLog('request', {
+    operation: 'back-translation',
+    provider: 'Google Cloud Translation API v2',
+    ...payload,
+  }, curl);
+
+  try {
+    const translatedText = await invoke<string>('back_translate', {
+      apiKey,
+      text,
+      sourceLanguage,
+      targetLanguage: targetLanguageCode,
+    });
+
+    const parsed = new DOMParser().parseFromString(translatedText, 'text/html');
+    const decodedText = parsed.documentElement.textContent || translatedText;
+    logger.addLog('response', {
+      operation: 'back-translation',
+      translatedText: decodedText,
+    });
+    return decodedText;
+  } catch (error) {
+    logger.addLog('error', `回译请求错误：${String(error)}`);
+    throw error;
+  }
 }
 
 export function resolveBackTranslationTargetLanguage(originalLanguage: Language, configuredCode: string) {
