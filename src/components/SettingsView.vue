@@ -13,6 +13,8 @@ const settings = useSettingsStore();
 const settingsCategory = ref<'api' | 'back-translation' | 'general' | 'prompts'>('api');
 const showApiKey = ref(false);
 const showBackTranslationApiKey = ref(false);
+const isSinglePromptDefault = computed(() => settings.systemPromptTemplate === DEFAULT_TEMPLATE);
+const isConversationPromptDefault = computed(() => settings.chatSystemPromptTemplate === CONVERSATION_SYSTEM_PROMPT_TEMPLATE);
 
 const newProfileName = ref('');
 const isSavingProfile = ref(false);
@@ -458,7 +460,11 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                       <div class="w-2 h-2 rounded-full bg-blue-500"></div>
                       <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">单轮翻译指令</h3>
                     </div>
-                    <button @click="settings.systemPromptTemplate = DEFAULT_TEMPLATE" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">恢复默认</button>
+                    <button
+                      @click="settings.systemPromptTemplate = DEFAULT_TEMPLATE"
+                      :disabled="isSinglePromptDefault"
+                      class="text-xs text-blue-600 dark:text-blue-400 enabled:hover:underline font-medium disabled:text-slate-300 dark:disabled:text-slate-600"
+                    >恢复默认</button>
                   </div>
                   <textarea 
                     v-model="settings.systemPromptTemplate"
@@ -480,7 +486,11 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                       <div class="w-2 h-2 rounded-full bg-blue-500"></div>
                       <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">对话翻译指令</h3>
                     </div>
-                    <button @click="settings.chatSystemPromptTemplate = CONVERSATION_SYSTEM_PROMPT_TEMPLATE" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">恢复默认</button>
+                    <button
+                      @click="settings.chatSystemPromptTemplate = CONVERSATION_SYSTEM_PROMPT_TEMPLATE"
+                      :disabled="isConversationPromptDefault"
+                      class="text-xs text-blue-600 dark:text-blue-400 enabled:hover:underline font-medium disabled:text-slate-300 dark:disabled:text-slate-600"
+                    >恢复默认</button>
                   </div>
                   <textarea 
                     v-model="settings.chatSystemPromptTemplate"
