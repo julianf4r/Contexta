@@ -55,7 +55,6 @@ export interface HistoryItem {
   targetLang: Language;
   sourceText: string;
   targetText: string;
-  context: string;
   speakerIdentity: string;
   toneRegister: string;
   modelName: string;

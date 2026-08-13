@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
 import { storeToRefs } from 'pinia';
-import { ChevronDown, Check, ArrowRightLeft, Trash2, FileText, Plus, Loader2, Send, User, Type, Copy, RefreshCcw, X } from 'lucide-vue-next';
+import { ChevronDown, Check, ArrowRightLeft, Trash2, Loader2, Send, User, Type, Copy, RefreshCcw, X } from 'lucide-vue-next';
 import { listen } from '@tauri-apps/api/event';
 import { LANGUAGES, SPEAKER_IDENTITY_OPTIONS, TONE_REGISTER_OPTIONS } from '../domain/translation';
 import { useSettingsStore } from '../stores/settings';
@@ -30,7 +30,6 @@ const workspaceStore = useTranslationWorkspaceStore();
 const { activeCopyId, copyWithFeedback } = useClipboard();
 const {
   sourceText,
-  context,
   targetText,
   backTranslationText,
   backTranslationLanguageCode,
@@ -172,7 +171,7 @@ const translate = async () => {
     toneRegister: settings.toneRegister,
   });
 
-  const userMessage = buildSingleTranslationUserPrompt(sourceText.value, context.value);
+  const userMessage = buildSingleTranslationUserPrompt(sourceText.value);
 
   const requestBody: TranslationPayload = {
     model: settings.modelName,
@@ -205,7 +204,6 @@ const translate = async () => {
       targetLang: { ...targetLang.value },
       sourceText: sourceText.value,
       targetText: finalTargetText,
-      context: context.value,
       speakerIdentity: settings.speakerIdentity,
       toneRegister: settings.toneRegister,
       modelName: settings.modelName
@@ -277,29 +275,6 @@ const translate = async () => {
                       placeholder="请输入待翻译内容..."
                       class="flex-1 p-6 resize-none outline-none text-lg leading-relaxed placeholder:text-slate-300 dark:placeholder:text-slate-600 bg-transparent min-h-0"
                     ></textarea>
-          
-                    <!-- Context Input Area -->
-                    <div class="px-6 py-3 bg-slate-200/20 dark:bg-slate-800/20 border-t border-dashed dark:border-slate-800 group/context relative">
-                       <div class="flex items-center justify-between mb-1.5 h-5">
-                          <div class="flex items-center gap-1.5">
-                            <FileText class="w-4 h-4 text-slate-400" />
-                            <span class="text-[12px] font-bold text-slate-400 uppercase tracking-widest">情景背景 (可选)</span>
-                          </div>
-                          <button 
-                            v-if="context"
-                            @click="context = ''"
-                            class="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded opacity-0 group-hover/context:opacity-100 transition-opacity"
-                            title="清空背景"
-                          >
-                            <Plus class="w-3 h-3 rotate-45 text-slate-400" />
-                          </button>
-                       </div>
-                       <textarea
-                          v-model="context"
-                          placeholder="在此输入背景信息，有助于提升翻译准确度..."
-                          class="w-full bg-transparent border-none outline-none text-sm text-slate-500 dark:text-slate-400 resize-none h-14 leading-normal placeholder:italic placeholder:text-slate-300 dark:placeholder:text-slate-600"
-                       ></textarea>
-                    </div>
           
                     <div class="p-4 border-t dark:border-slate-800 bg-slate-50/30 dark:bg-transparent flex justify-end shrink-0">            <button 
               @click="translate"

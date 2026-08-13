@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue';
-import { Clock, Search, ArrowRightLeft, Trash2, User, Type, Copy, Check, FileText } from 'lucide-vue-next';
+import { Clock, Search, ArrowRightLeft, Trash2, User, Type, Copy, Check } from 'lucide-vue-next';
 import { useHistoryStore } from '../stores/history';
 import { SPEAKER_IDENTITY_OPTIONS, TONE_REGISTER_OPTIONS } from '../domain/translation';
 import { cn } from '../lib/utils';
@@ -153,17 +153,6 @@ const deleteHistoryItem = (id: string) => {
                 <div class="bg-slate-50 dark:bg-slate-800/30 p-6 rounded-2xl border border-slate-100 dark:border-slate-800 text-lg leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
                   {{ selectedHistoryItem.sourceText }}
                 </div>
-              </section>
-
-              <!-- Context if exists -->
-              <section v-if="selectedHistoryItem.context" class="space-y-4">
-                 <div class="flex items-center gap-2">
-                    <FileText class="w-4 h-4 text-slate-300" />
-                    <h3 class="text-xs font-black text-slate-400 uppercase tracking-widest">情景背景</h3>
-                  </div>
-                  <div class="bg-amber-50/30 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100/50 dark:border-amber-900/20 text-sm italic text-slate-500 dark:text-slate-400 leading-relaxed">
-                    {{ selectedHistoryItem.context }}
-                  </div>
               </section>
 
               <!-- Target -->

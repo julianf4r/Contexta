@@ -37,7 +37,7 @@
     "publisher": "Julian F.",
     "copyright": "Licensed under the MIT License.",
     "shortDescription": "译境是一款面向上下文和对话场景的 AI 翻译工具。",
-    "longDescription": "译境（Contexta）是一款桌面端 AI 翻译工具，适合处理单句翻译、带背景信息的表达转换，以及需要保持上下文连贯的多轮对话翻译。它支持配置 OpenAI 兼容接口、管理模型预设、指定说话人身份和语气风格，并提供翻译历史、请求日志与谷歌翻译回译，帮助用户在真实交流场景中获得更自然、更贴合语境的译文。",
+    "longDescription": "译境（Contexta）是一款桌面端 AI 翻译工具，适合处理单句翻译以及需要保持上下文连贯的多轮对话翻译。它支持配置 OpenAI 兼容接口、管理模型预设、指定说话人身份和语气风格，并提供翻译历史、请求日志与谷歌翻译回译，帮助用户在真实交流场景中获得更自然、更贴合语境的译文。",
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

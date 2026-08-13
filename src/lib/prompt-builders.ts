@@ -38,10 +38,8 @@ export function buildSingleTranslationSystemPrompt(
   });
 }
 
-export function buildSingleTranslationUserPrompt(sourceText: string, context: string) {
-  return context
-    ? `[Context]\n${context}\n\n[Text to Translate]\n${sourceText}`
-    : `[Text to Translate]\n${sourceText}`;
+export function buildSingleTranslationUserPrompt(sourceText: string) {
+  return `[Text to Translate]\n${sourceText}`;
 }
 
 export function buildConversationSystemPrompt(template: string, context: ConversationPromptContext, emptyHistoryFallback: string) {

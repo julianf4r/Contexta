@@ -8,8 +8,7 @@ export const DEFAULT_TEMPLATE = `You are a professional {SOURCE_LANG} ({SOURCE_C
 [Constraints]
 1. Speaker Gender: {SPEAKER_IDENTITY}. Use it only for the speaker's own first-person references or grammatical agreement when relevant in {TARGET_LANG}. If set to 'Auto-detect', infer it only when the source makes it clear. Preserve all people and gender terms explicitly mentioned in the source.
 2. Tone & Register: {TONE_REGISTER}. (If set to 'Auto-detect', analyze the tone, formality, and emotional nuance of the source text and faithfully replicate it. Do not neutralize strong emotions or unique styles.)
-3. Produce ONLY the {TARGET_LANG} translation, without any additional explanations, notes, or commentary.
-4. If [Context] is provided, use it strictly to disambiguate polysemous words. DO NOT add any factual information or descriptive details from the [Context] that are not present in the [Text to Translate].`;
+3. Produce ONLY the {TARGET_LANG} translation, without any additional explanations, notes, or commentary.`;
 
 export const CONVERSATION_SYSTEM_PROMPT_TEMPLATE = `# Role: Professional Real-time Conversation Translator
 

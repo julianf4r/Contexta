@@ -3,7 +3,6 @@ import { defineStore } from 'pinia';
 
 export const useTranslationWorkspaceStore = defineStore('translationWorkspace', () => {
   const sourceText = ref('');
-  const context = ref('');
   const targetText = ref('');
   const backTranslationText = ref('');
   const backTranslationLanguageCode = ref('');
@@ -27,7 +26,6 @@ export const useTranslationWorkspaceStore = defineStore('translationWorkspace', 
 
   return {
     sourceText,
-    context,
     targetText,
     backTranslationText,
     backTranslationLanguageCode,
