@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue';
-import { Play, Settings, Type, Save, Check, Plus, Trash2, ChevronDown, Eye, EyeOff, Pencil, MessageSquare, RefreshCcw } from 'lucide-vue-next';
+import { Play, Settings, Type, Save, Check, Plus, Trash2, ChevronDown, Eye, EyeOff, Pencil, RefreshCcw } from 'lucide-vue-next';
 import { 
   useSettingsStore, 
   DEFAULT_TEMPLATE, 
@@ -10,7 +10,7 @@ import { LANGUAGES, type ApiProfile } from '../domain/translation';
 import { cn } from '../lib/utils';
 
 const settings = useSettingsStore();
-const settingsCategory = ref<'api' | 'back-translation' | 'general' | 'prompts' | 'chat-prompts'>('api');
+const settingsCategory = ref<'api' | 'back-translation' | 'general' | 'prompts'>('api');
 const showApiKey = ref(false);
 const showBackTranslationApiKey = ref(false);
 
@@ -147,18 +147,6 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 <Type class="w-4 h-4" />
               </div>
               提示词工程
-            </button>
-            <button 
-              @click="settingsCategory = 'chat-prompts'"
-              :class="cn(
-                'w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors',
-                settingsCategory === 'chat-prompts' ? 'bg-blue-50 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' : 'text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800/50'
-              )"
-            >
-              <div :class="cn('p-1.5 rounded-md', settingsCategory === 'chat-prompts' ? 'bg-blue-100 dark:bg-blue-900/50' : 'bg-slate-100 dark:bg-slate-800')">
-                <MessageSquare class="w-4 h-4" />
-              </div>
-              对话提示词
             </button>
           </nav>
         </div>
@@ -459,7 +447,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
             <template v-if="settingsCategory === 'prompts'">
               <div class="mb-6 border-b dark:border-slate-800 pb-4">
                 <h1 class="text-2xl font-bold text-slate-800 dark:text-slate-100">提示词工程</h1>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">深度定制 AI 的系统指令，修改变量占位符将改变其核心逻辑。</p>
+                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">分别定制单轮翻译与对话翻译的系统指令。</p>
               </div>
 
               <div class="space-y-8">
@@ -468,7 +456,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                   <div class="px-5 py-3 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
                     <div class="flex items-center gap-2">
                       <div class="w-2 h-2 rounded-full bg-blue-500"></div>
-                      <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">主翻译系统指令</h3>
+                      <h3 class="text-sm font-bold text-slate-700 dark:text-slate-200">单轮翻译指令</h3>
                     </div>
                     <button @click="settings.systemPromptTemplate = DEFAULT_TEMPLATE" class="text-xs text-blue-600 dark:text-blue-400 hover:underline font-medium">恢复默认</button>
                   </div>
@@ -485,17 +473,6 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                   </div>
                 </div>
 
-              </div>
-            </template>
-
-            <!-- Chat Prompt Engineering -->
-            <template v-if="settingsCategory === 'chat-prompts'">
-              <div class="mb-6 border-b dark:border-slate-800 pb-4">
-                <h1 class="text-2xl font-bold text-slate-800 dark:text-slate-100">对话提示词</h1>
-                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">专门针对“对话模式”优化的系统指令模板。</p>
-              </div>
-
-              <div class="space-y-8">
                 <!-- Chat Translation Prompt -->
                 <div class="bg-white/80 dark:bg-slate-900 rounded-2xl shadow-sm border dark:border-slate-800 overflow-hidden flex flex-col">
                   <div class="px-5 py-3 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-950 flex items-center justify-between">
