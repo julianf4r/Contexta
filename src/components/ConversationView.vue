@@ -283,11 +283,13 @@ const backTranslateMessage = async (messageId: string) => {
   if (!activeSession.value) return;
   const sessionId = activeSession.value.id;
   const msg = activeSession.value.messages.find(m => m.id === messageId);
-  if (!msg?.translated || msg.isBackTranslating) return;
+  if (!msg || msg.isBackTranslating) return;
+  const text = msg.sender === 'me' ? msg.translated : msg.original;
+  if (!text.trim()) return;
   const followLatestMessage = isLatestMessage(sessionId, messageId) && isNearMessageBottom();
 
   const originalLanguage = msg.sender === 'me' ? activeSession.value.me.language : activeSession.value.partner.language;
-  const translatedLanguage = msg.sender === 'me' ? activeSession.value.partner.language : activeSession.value.me.language;
+  const inputLanguage = activeSession.value.partner.language;
   const targetLanguage = resolveBackTranslationTargetLanguage(originalLanguage, settings.backTranslationTargetLanguageCode);
 
   conversationStore.updateChatMessage(sessionId, messageId, {
@@ -308,8 +310,8 @@ const backTranslateMessage = async (messageId: string) => {
   try {
     const result = await executeBackTranslation({
       apiKey: settings.backTranslationApiKey,
-      text: msg.translated,
-      translatedLanguage,
+      text,
+      translatedLanguage: inputLanguage,
       targetLanguage,
       logger: logsStore,
     });
@@ -548,7 +550,7 @@ onUnmounted(() => window.removeEventListener('click', handleGlobalClick));
                 </button>
                 <button
                   @click="backTranslateMessage(msg.id)"
-                  :disabled="isTranslating || msg.isBackTranslating || !msg.translated"
+                  :disabled="isTranslating || msg.isBackTranslating || !(msg.sender === 'me' ? msg.translated : msg.original).trim()"
                   class="p-1.5 hover:bg-cyan-50 dark:hover:bg-cyan-900/30 rounded-full transition-colors disabled:opacity-30"
                   title="回译"
                 >
